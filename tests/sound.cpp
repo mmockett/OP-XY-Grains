@@ -27,7 +27,7 @@ struct Rig {
     grains::Voice voice;
     Rig(const opxy::i16* data, u32 count) {
         // definition.json's defaults.
-        const double defaults[8] = {0, 0.853553, 0.392468, 0.428571, 0, 0.071429, 0.5, 0.083333};
+        const double defaults[8] = {0, 0.853553, 0.392468, 0.157895, 0, 0.071429, 0.5, 0.083333};
         for (u32 i = 0; i < 8; ++i) parameters[i] = at(defaults[i]);
         for (u32 i = 0; i < opxy::block_frames; ++i) pitch[i] = c4;
         block = opxy::SampleBlock();

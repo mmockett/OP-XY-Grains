@@ -78,7 +78,7 @@ u32 size_ms(i32 v) {
         size_table[index] + ((size_table[index + 1] - size_table[index]) * fraction >> 16);
     return samples * 10 / 441;
 }
-u32 overlap8(i32 v) { return 256 + ((level(v) * 7 * 256) >> 16); }
+u32 overlap8(i32 v) { return 256 + ((level(v) * (grain_count - 1) * 256) >> 16); }
 
 // Captions.
 char* put(char* out, u32 value) {
@@ -167,7 +167,7 @@ u32 interval_ms(DisplayState& state, const Input& input) {
     const u32 mode = choice(input.slots[kMode], mode_count) % 3, size = size_ms(input.slots[kSize]);
     const u32 overlap = overlap8(input.slots[kDens]);
     u32 ms;
-    if (mode == kSync) ms = 1000u >> ((overlap - 256) * 5 / (7 * 256 + 1));
+    if (mode == kSync) ms = 1000u >> ((overlap - 256) * 5 / ((grain_count - 1) * 256 + 1));
     else {
         ms = size * 256 / overlap;
         if (mode == kCloud) ms = ms * ((next_random(state) >> 16) + 32768) >> 16;
@@ -253,7 +253,7 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     if (size < 1000) put(values[kSize], size)[0] = '\0';   // ms
     else { tenths(values[kSize], size / 100); copy(values[kSize] + 3, 2, "s"); }
     const u32 overlap = overlap8(input.slots[kDens]);
-    if (mode % 3 == kSync) copy(values[kDens], header_capacity, divisions[(overlap - 256) * 5 / (7 * 256 + 1)]);
+    if (mode % 3 == kSync) copy(values[kDens], header_capacity, divisions[(overlap - 256) * 5 / ((grain_count - 1) * 256 + 1)]);
     else tenths(values[kDens], overlap * 10 >> 8);
     header_amount(values[kSpry], header_capacity, input.slots[kSpry]);
     copy(values[kChrd], header_capacity, chord_names[chord]);

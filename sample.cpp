@@ -82,7 +82,7 @@ struct Settings {
     u32 pos;                // frames into the region
     i32 speed;              // scan, frames per output sample, Q16 (negative: backward)
     u32 length;             // a grain, samples
-    u32 overlap8;           // grains sounding at once, Q8, 1..8
+    u32 overlap8;           // grains sounding at once, Q8, 1..grain_count
     u32 chaos;              // spry, 0..65535: how random each grain is
     u32 spray;              // frames either side of the read point
     u32 chord;              // chord_table row
@@ -110,7 +110,7 @@ Settings decode(const Voice& voice, const opxy::SampleBlock& block) {
     const i32 speed = i32(times(curved * 2, own_rate));
     s.speed = centred < 0 ? -speed : speed;
     s.length = curve(size_table, 5, level(p[kSize]));
-    s.overlap8 = 256 + ((level(p[kDens]) * 7 * 256) >> 16);
+    s.overlap8 = 256 + ((level(p[kDens]) * (grain_count - 1) * 256) >> 16);
     s.chaos = level(p[kSpry]);
     s.spray = times(s.chaos, s.span >> 1);
     s.chord = (level(p[kChrd]) * 7) >> 16;
@@ -132,7 +132,7 @@ u32 interval(Voice& voice, const Settings& s, const opxy::SampleBlock& block) {
         // dens picks the division: 1/2, 1/4, 1/8, 1/16 or 1/32 notes.
         const u32 bpm_x10 = block.transport.bpm_x10 ? block.transport.bpm_x10 : 1200;
         const u32 quarter = 44100u * 600u / bpm_x10;
-        const u32 division = ((s.overlap8 - 256) * 5) / (7 * 256 + 1);   // 0..4
+        const u32 division = ((s.overlap8 - 256) * 5) / ((grain_count - 1) * 256 + 1);   // 0..4
         return (quarter * 2) >> division;
     }
     const u32 even = (s.length * 256) / s.overlap8;
@@ -328,7 +328,7 @@ void render_sample(Voice& voice, const opxy::SampleBlock& block) {
     const Settings s = decode(voice, block);
     if (!s.span) return;
     const u32 sounding = s.overlap8 >> 8;
-    const i32 gain = gain_table[(sounding < 1 ? 1 : sounding > 8 ? 8 : sounding) - 1];
+    const i32 gain = gain_table[(sounding < 1 ? 1 : sounding > grain_count ? grain_count : sounding) - 1];
 
     // A grain at a time through the block: first those already sounding, then
     // each one due to start, from its own sample. A slot is free for a new

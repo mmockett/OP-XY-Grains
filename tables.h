@@ -33,9 +33,11 @@ const opxy::i16 pan_table[17] = {
     0,
 };
 
-// Each grain's gain for 1..8 sounding: 1 / sqrt(n) and the window's make-up, Q15.
-const opxy::i32 gain_table[8] = {
+// Each grain's gain for 1..20 sounding: 1 / sqrt(n) and the window's make-up, Q15.
+const opxy::i32 gain_table[20] = {
     53508, 37836, 30893, 26754, 23930, 21845, 20224, 18918,
+    17836, 16921, 16133, 15447, 14841, 14301, 13816, 13377,
+    12978, 12612, 12276, 11965,
 };
 
 // 2^(k/12) for k 0..11, Q16.

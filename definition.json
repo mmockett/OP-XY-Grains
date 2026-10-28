@@ -39,11 +39,11 @@
     {
       "id": "dens",
       "label": "dens",
-      "default": 0.428571,
+      "default": 0.157895,
       "mapping": {
         "kind": "linear",
         "minimum": 1,
-        "maximum": 8
+        "maximum": 20
       },
       "display": "ratio"
     },
