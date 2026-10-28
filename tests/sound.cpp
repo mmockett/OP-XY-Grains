@@ -8,7 +8,7 @@ namespace {
 using opxy::i32;
 using opxy::u32;
 const u32 c4 = 25480119u, frames = 44100;
-opxy::i16 sine[frames], square[frames];
+opxy::i16 sine[frames], square[frames], soft[frames];
 int failures = 0;
 
 void check(bool ok, const char* what) {
@@ -55,6 +55,7 @@ int main() {
     for (u32 i = 0; i < frames; ++i) {
         sine[i] = opxy::i16(32767 * std::sin(2 * M_PI * 220.0 * i / 44100));
         square[i] = (i / 50) & 1 ? 32767 : -32768;
+        soft[i] = opxy::i16(sine[i] / 8);   // well below the output ceiling
     }
 
     {   // No sample: silence.
@@ -116,6 +117,29 @@ int main() {
         const grains::Settings s = grains::decode(r.voice, r.block);
         grains::spawn(r.voice, s);
         check(r.voice.grains[0].step > 131000 && r.voice.grains[0].step < 131200, "an octave up doubles the step");
+    }
+    {   // The sample's root: a sample rooted on A3 (pitch_cents +300) plays as recorded
+        // on A3, a semitone faster on B flat 3, and at the sample's own rate.
+        Rig r(sine, frames);
+        r.block.region.pitch_cents = 300;
+        for (u32 i = 0; i < opxy::block_frames; ++i) r.pitch[i] = u32(c4 * std::pow(2.0, -3 / 12.0) + 0.5);
+        grains::spawn(r.voice, grains::decode(r.voice, r.block));
+        check(r.voice.grains[0].step > 65400 && r.voice.grains[0].step < 65670, "a sample plays as recorded on its root");
+        for (u32 i = 0; i < opxy::block_frames; ++i) r.pitch[i] = u32(c4 * std::pow(2.0, -2 / 12.0) + 0.5);
+        for (u32 k = 0; k < grains::grain_count; ++k) r.voice.grains[k].active = false;
+        grains::spawn(r.voice, grains::decode(r.voice, r.block));
+        const double semitone = 65536 * std::pow(2.0, 1 / 12.0);
+        check(std::fabs(r.voice.grains[0].step - semitone) < semitone * 0.002, "a semitone up plays a semitone faster");
+        r.voice.sample.rate = 22050;   // a sample at half the rate plays at half the step
+        for (u32 k = 0; k < grains::grain_count; ++k) r.voice.grains[k].active = false;
+        grains::spawn(r.voice, grains::decode(r.voice, r.block));
+        check(std::fabs(r.voice.grains[0].step - semitone / 2) < semitone * 0.002, "a sample's own rate sets its speed");
+    }
+    {   // The sample's volume: half its level halves the output.
+        Rig loud(soft, frames), quiet(soft, frames);
+        quiet.block.region.level = opxy::sample_unity_level / 2;
+        const i32 a = loud.run(100), b = quiet.run(100);
+        check(b > a / 2 - a / 50 && b < a / 2 + a / 50, "the sample's volume scales the output");
     }
     {   // sync at 120 BPM: dens picks a half note (44100 samples) down to a 1/32 (2756).
         Rig r(sine, frames);

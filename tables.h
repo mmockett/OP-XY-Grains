@@ -26,16 +26,16 @@ const opxy::u32 size_table[33] = {
     88200,
 };
 
-// Constant-power pan: the left gain, Q15, for pan 0..16.
+// Pan: the left gain, Q15, for pan 0..16; unity in the centre.
 const opxy::i16 pan_table[17] = {
-    32767, 32609, 32137, 31356, 30273, 28898, 27245, 25329,
-    23170, 20787, 18204, 15446, 12539, 9512, 6393, 3212,
+    32767, 32767, 32767, 32767, 32767, 32767, 32767, 32767,
+    32767, 29397, 25745, 21844, 17733, 13452, 9040, 4542,
     0,
 };
 
-// Each grain's gain for 1..8 sounding: 1 / sqrt(n), Q15.
-const opxy::i16 gain_table[8] = {
-    32767, 23170, 18918, 16384, 14654, 13377, 12385, 11585,
+// Each grain's gain for 1..8 sounding: 1 / sqrt(n) and the window's make-up, Q15.
+const opxy::i32 gain_table[8] = {
+    53508, 37836, 30893, 26754, 23930, 21845, 20224, 18918,
 };
 
 // 2^(k/12) for k 0..11, Q16.

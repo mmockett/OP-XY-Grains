@@ -232,6 +232,12 @@ void render_sample(Voice& voice, const opxy::SampleBlock& block) {
             }
             if (++g.age >= g.length) g.active = false;
         }
+        // The sample's own volume (unsigned Q27, unity 1 << 27), as the sampler applies it.
+        if (block.region.level != opxy::sample_unity_level) {
+            const i32 level = i32(block.region.level >> 16);          // Q11
+            left = (left >> 11) * level;
+            right = (right >> 11) * level;
+        }
         if (left > half_scale) left = half_scale;
         if (left < -half_scale) left = -half_scale;
         if (right > half_scale) right = half_scale;
