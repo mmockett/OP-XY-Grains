@@ -28,6 +28,15 @@ pos, scan and spry choose where its grains read, so it needs no trim.
 Press any encoder to switch pages; Shift + turn makes fine steps. The OP-XY's
 own envelopes, LFOs, filter and effects apply as for any instrument.
 
+Every note of Grains, on every track, shares 64 grains at once, to keep its
+processing in bounds. Notes take what dens asks for while there's room: three
+notes at 20, or eight at 8. Past that, each note gets its part of the 64, in
+proportion to what it asks for: fewer grains at once in cloud and osc, shorter
+ones on the same beat in sync. A note that has to give grains up fades them
+out over about 6 ms. Each grain's level is set as it starts, so fewer grains
+play louder without the ones already sounding jumping. The screen still shows
+dens's own count.
+
 ## The SDK it needs
 
 Grains is a sample engine on the stock sample page (page 2) that plays like the

@@ -10,6 +10,8 @@ using opxy::u32;
 const u32 c4_increment = 25480119u;
 // Output may peak at half scale.
 const i32 half_scale = 0x40000000;
+// Samples a grain shed over a voice's share takes to fade out.
+const u32 fade = 256;
 
 // A control as 0..65535.
 u32 level(i32 parameter) { return parameter < 0 ? 0u : u32(parameter) >> 15; }
@@ -51,6 +53,34 @@ u32 next_random(Voice& voice) {
     return voice.random = x;
 }
 
+// The shared grain budget. Sample engines have no Shared state and no call
+// when a voice ends, so voices are counted, not tracked: each render adds the
+// grains its voice wants to the cycle's total, and a voice rendering a second
+// time in a cycle starts the next one. A count that starts afresh every block
+// cannot drift as notes come and go.
+struct Census {
+    u32 cycle;    // the cycle being counted
+    u32 wanted;   // grains wanted in it so far
+    u32 total;    // grains wanted in the last whole cycle
+};
+Census census;
+
+// The grains a voice may sound this block, given those it wants: as many as it
+// has slots while every voice together wants no more than the budget, and
+// otherwise its part of the budget, at least one.
+u32 share(Voice& voice, u32 want) {
+    if (voice.cycle == census.cycle) {
+        census.total = census.wanted;
+        census.wanted = 0;
+        ++census.cycle;
+    }
+    voice.cycle = census.cycle;
+    census.wanted += want;
+    if (census.total <= grain_budget) return grain_count;
+    const u32 part = grain_budget * want / census.total;
+    return part ? part : 1;
+}
+
 // A table read with linear interpolation between its 2^steps + 1 entries.
 template <class T> u32 curve(const T* table, u32 steps, u32 value16) {
     const u32 position = value16 << steps, index = position >> 16, fraction = position & 0xffff;
@@ -83,6 +113,7 @@ struct Settings {
     i32 speed;              // scan, frames per output sample, Q16 (negative: backward)
     u32 length;             // a grain, samples
     u32 overlap8;           // grains sounding at once, Q8, 1..grain_count
+    i32 gain;               // a new grain's share of the output, for overlap8
     u32 chaos;              // spry, 0..65535: how random each grain is
     u32 spray;              // frames either side of the read point
     u32 chord;              // chord_table row
@@ -91,6 +122,12 @@ struct Settings {
     bool backward;          // the mode's reversed variant: grains play backwards
     u32 rate;               // the played note's playback rate, Q16
 };
+
+// A grain's share of the output when overlap8 >> 8 sound at once.
+i32 grain_gain(u32 overlap8) {
+    const u32 sounding = overlap8 >> 8;
+    return gain_table[(sounding < 1 ? 1 : sounding > grain_count ? grain_count : sounding) - 1];
+}
 
 Settings decode(const Voice& voice, const opxy::SampleBlock& block) {
     const i32* p = block.parameters;
@@ -111,6 +148,7 @@ Settings decode(const Voice& voice, const opxy::SampleBlock& block) {
     s.speed = centred < 0 ? -speed : speed;
     s.length = curve(size_table, 5, level(p[kSize]));
     s.overlap8 = 256 + ((level(p[kDens]) * (grain_count - 1) * 256) >> 16);
+    s.gain = grain_gain(s.overlap8);
     s.chaos = level(p[kSpry]);
     s.spray = times(s.chaos, s.span >> 1);
     s.chord = (level(p[kChrd]) * 7) >> 16;
@@ -126,15 +164,17 @@ Settings decode(const Voice& voice, const opxy::SampleBlock& block) {
     return s;
 }
 
+// sync's samples between grains: dens picks the division, 1/2, 1/4, 1/8, 1/16
+// or 1/32 notes.
+u32 division(const Settings& s, const opxy::SampleBlock& block) {
+    const u32 bpm_x10 = block.transport.bpm_x10 ? block.transport.bpm_x10 : 1200;
+    const u32 quarter = 44100u * 600u / bpm_x10;
+    return (quarter * 2) >> (((s.overlap8 - 256) * 5) / ((grain_count - 1) * 256 + 1));
+}
+
 // Samples until the next grain.
 u32 interval(Voice& voice, const Settings& s, const opxy::SampleBlock& block) {
-    if (s.mode == kSync) {
-        // dens picks the division: 1/2, 1/4, 1/8, 1/16 or 1/32 notes.
-        const u32 bpm_x10 = block.transport.bpm_x10 ? block.transport.bpm_x10 : 1200;
-        const u32 quarter = 44100u * 600u / bpm_x10;
-        const u32 division = ((s.overlap8 - 256) * 5) / ((grain_count - 1) * 256 + 1);   // 0..4
-        return (quarter * 2) >> division;
-    }
+    if (s.mode == kSync) return division(s, block);
     const u32 even = (s.length * 256) / s.overlap8;
     if (s.mode == kOsc) return even ? even : 1;
     // cloud: half to one and a half times the even spacing.
@@ -143,13 +183,28 @@ u32 interval(Voice& voice, const Settings& s, const opxy::SampleBlock& block) {
     return spaced ? spaced : 1;
 }
 
-// Starts a grain in the first free slot; returns it, or null when none is free.
+// The grains a voice sounds at once: dens's overlap, or in sync as many as its
+// division fits into a grain's length.
+u32 wanted(const Settings& s, const opxy::SampleBlock& block) {
+    u32 n = (s.overlap8 + 255) >> 8;
+    if (s.mode == kSync) {
+        const u32 spacing = division(s, block);
+        n = (s.length + spacing - 1) / spacing;
+    }
+    return n < 1 ? 1 : n > grain_count ? grain_count : n;
+}
+
+// Starts a grain in the first free slot; returns it, or null when none is free
+// or the voice already sounds cap grains.
 // free_at, while a block renders: the sample from which each slot is free.
-Grain* spawn(Voice& voice, const Settings& s, const u32* free_at = 0, u32 at = 0) {
+Grain* spawn(Voice& voice, const Settings& s, const u32* free_at = 0, u32 at = 0, u32 cap = grain_count) {
     Grain* g = 0;
-    for (u32 i = 0; i < grain_count && !g; ++i)
-        if (free_at ? free_at[i] <= at : !voice.grains[i].active) g = &voice.grains[i];
-    if (!g || !s.span) return 0;
+    u32 busy = 0;
+    for (u32 i = 0; i < grain_count; ++i) {
+        if (free_at ? free_at[i] <= at : !voice.grains[i].active) { if (!g) g = &voice.grains[i]; }
+        else ++busy;
+    }
+    if (!g || busy >= cap || !s.span) return 0;
     // Where it reads: pos, plus the scan, plus spray, wrapped into the region.
     i32 offset = i32(s.pos) + voice.scan;
     if (s.spray) offset += i32(next_random(voice) % (2 * s.spray + 1)) - i32(s.spray);
@@ -185,7 +240,7 @@ Grain* spawn(Voice& voice, const Settings& s, const u32* free_at = 0, u32 at = 0
     if (g->peak >= g->length) g->peak = g->length - 1;
     g->rise = (64u << 16) / g->peak;
     g->fall = (64u << 16) / (g->length - g->peak);
-    g->window = 0;
+    g->gain = s.gain;
     g->age = 0;
     const u32 r16 = next_random(voice) >> 16;
     const u32 wide = (s.chaos * 17) >> 16, width = wide > 8 ? 8 : wide;   // 0..8, full from the middle
@@ -206,14 +261,42 @@ u32 window_position(const Grain& g, u32 t) {
     return down >= peak ? 0 : peak - down;
 }
 
+// Ends a grain early: its window falls from where it is now to nothing over
+// fade samples. The closed form above then reads it as a grain peaking now.
+void retire(Grain& g) {
+    const u32 w = window_position(g, g.age);
+    if (!g.age || !w) { g.active = false; return; }
+    g.rise = w / g.age;
+    g.peak = g.age;
+    g.fall = (w + fade - 1) / fade;
+    g.length = g.age + fade;
+}
+
+// Fades out the grains a voice sounds beyond cap, those with longest left
+// first, so a voice whose share shrinks keeps to it within fade samples.
+void shed(Voice& voice, u32 cap) {
+    u32 staying = 0;
+    for (u32 k = 0; k < grain_count; ++k)
+        staying += voice.grains[k].active && voice.grains[k].length - voice.grains[k].age > fade;
+    for (; staying > cap; --staying) {
+        Grain* longest = 0;
+        for (u32 k = 0; k < grain_count; ++k) {
+            Grain& g = voice.grains[k];
+            if (g.active && g.length - g.age > fade && (!longest || g.length - g.age > longest->length - longest->age))
+                longest = &g;
+        }
+        retire(*longest);
+    }
+}
+
 // A grain's left and right amplitude at age t, its window, gain and pan in one
 // Q9 multiplier: a sample times (amplitude >> 9), at most 26753 so that both
 // fit 16 bits, is half its share of the output.
-void amplitude(const Grain& g, u32 t, i32 gain, i32& left, i32& right) {
+void amplitude(const Grain& g, u32 t, i32& left, i32& right) {
     const u32 position = window_position(g, t), index = position >> 16, part = position & 0xffff;
     const i32 w = index >= 64 ? window_table[64] :
         window_table[index] + ((i32(window_table[index + 1]) - window_table[index]) * i32(part) >> 16);
-    const i32 shaped = (w * gain) >> 15;                           // at most 53508
+    const i32 shaped = (w * g.gain) >> 15;                           // at most 53508
     left = (shaped * pan_table[g.pan]) >> 7;
     right = (shaped * pan_table[16 - g.pan]) >> 7;
 }
@@ -272,15 +355,15 @@ void play(Grain& g, const opxy::SampleView& sample, const Settings& s, i32* out,
 // (to the block's 16-sample marks, the window's peak and the grain's end),
 // each a straight ramp between its amplitudes at either end. Returns the
 // sample from which its slot is free: to while it sounds on.
-u32 render_grain(Grain& g, const opxy::SampleView& sample, const Settings& s, i32 gain, i32* out, u32 from, u32 to) {
+u32 render_grain(Grain& g, const opxy::SampleView& sample, const Settings& s, i32* out, u32 from, u32 to) {
     u32 i = from;
     while (i < to && g.active) {
         u32 n = ((i | 15) + 1 < to ? (i | 15) + 1 : to) - i;
         if (n > g.length - g.age) n = g.length - g.age;
         if (g.age < g.peak && n > g.peak - g.age) n = g.peak - g.age;
         i32 l0, r0, l1, r1;
-        amplitude(g, g.age, gain, l0, r0);
-        amplitude(g, g.age + n, gain, l1, r1);
+        amplitude(g, g.age, l0, r0);
+        amplitude(g, g.age + n, l1, r1);
         // A full segment divides by a shift; the rare shorter ones by n.
         const i32 dl = n == 16 ? (l1 - l0) >> 4 : (l1 - l0) / i32(n);
         const i32 dr = n == 16 ? (r1 - r0) >> 4 : (r1 - r0) / i32(n);
@@ -309,6 +392,7 @@ void initialize(Voice& voice, const opxy::SampleView& sample) {
     voice.countdown = 0;
     voice.random = 0x2545f491u;
     voice.spawned = 0;
+    voice.cycle = census.cycle - 1;   // not yet counted in this cycle
 }
 
 // A note: no grains yet, the scan back at pos, and the first grain at once.
@@ -325,10 +409,17 @@ void render_sample(Voice& voice, const opxy::SampleBlock& block) {
     const u32 words = stereo ? 2 * opxy::block_frames : opxy::block_frames;
     for (u32 i = 0; i < words; ++i) block.output[i] = 0;
     if (!voice.sample.frames || !voice.sample.data) return;
-    const Settings s = decode(voice, block);
+    Settings s = decode(voice, block);
     if (!s.span) return;
-    const u32 sounding = s.overlap8 >> 8;
-    const i32 gain = gain_table[(sounding < 1 ? 1 : sounding > grain_count ? grain_count : sounding) - 1];
+    // The voice's share of the grain budget: past it, fewer grains at once in
+    // cloud and osc, and shorter ones on the same beat in sync.
+    const u32 want = wanted(s, block), cap = share(voice, want);
+    if (cap < want) {
+        if (s.mode == kSync) s.length = division(s, block) * cap;
+        else s.overlap8 = cap << 8;
+        s.gain = grain_gain(s.overlap8);
+    }
+    shed(voice, cap);
 
     // A grain at a time through the block: first those already sounding, then
     // each one due to start, from its own sample. A slot is free for a new
@@ -336,11 +427,11 @@ void render_sample(Voice& voice, const opxy::SampleBlock& block) {
     i32 mix[2 * opxy::block_frames] = {};   // half of each sample's output, for headroom
     u32 free_at[grain_count];
     for (u32 k = 0; k < grain_count; ++k)
-        free_at[k] = voice.grains[k].active ? render_grain(voice.grains[k], voice.sample, s, gain, mix, 0, opxy::block_frames) : 0;
+        free_at[k] = voice.grains[k].active ? render_grain(voice.grains[k], voice.sample, s, mix, 0, opxy::block_frames) : 0;
     for (u32 i = 0;;) {
         if (!voice.countdown) {
-            if (Grain* g = spawn(voice, s, free_at, i))
-                free_at[g - voice.grains] = render_grain(*g, voice.sample, s, gain, mix, i, opxy::block_frames);
+            if (Grain* g = spawn(voice, s, free_at, i, cap))
+                free_at[g - voice.grains] = render_grain(*g, voice.sample, s, mix, i, opxy::block_frames);
             voice.countdown = interval(voice, s, block);
         }
         const u32 skip = voice.countdown < opxy::block_frames - i ? voice.countdown : opxy::block_frames - i;

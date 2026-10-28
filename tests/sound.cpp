@@ -251,6 +251,86 @@ int main() {
         }
         check(worst < 0.01, "a grain's output follows its window");
     }
-    if (!failures) std::puts("PASS grains: silence, levels, freeze, scan, chords, pitch, sync, osc, shape, size, spry, reverse, window");
+    {   // The grain budget, shared by every voice: osc at dens 20, half-second grains.
+        auto sounding = [](const grains::Voice& v) {
+            u32 n = 0;
+            for (u32 k = 0; k < grains::grain_count; ++k) n += v.grains[k].active;
+            return n;
+        };
+        auto dense = [](Rig& r) {
+            r.parameters[grains::kMode] = choice(2, grains::mode_count);
+            r.parameters[grains::kDens] = at(1);
+            r.parameters[grains::kSize] = at(0.8);
+        };
+        grains::census = grains::Census();
+        static Rig* rigs[8];
+        for (u32 v = 0; v < 8; ++v) { rigs[v] = new Rig(level16, frames); dense(*rigs[v]); }
+        // Renders the first voices block by block, as stock does; returns the most
+        // grains they sounded together after a block, from block settle on.
+        auto run = [&](u32 voices, u32 blocks, u32 settle, u32* most_one) {
+            u32 most = 0;
+            for (u32 b = 0; b < blocks; ++b) {
+                u32 all = 0;
+                for (u32 v = 0; v < voices; ++v) {
+                    grains::render_sample(rigs[v]->voice, rigs[v]->block);
+                    const u32 n = sounding(rigs[v]->voice);
+                    all += n;
+                    if (most_one && n > *most_one) *most_one = n;
+                }
+                if (b >= settle && all > most) most = all;
+            }
+            return most;
+        };
+        u32 one = 0;
+        run(1, 800, 0, &one);
+        check(one == grains::grain_count, "a lone voice sounds all its grains");
+        // Seven more notes: within a few blocks, all eight share the budget.
+        for (u32 v = 1; v < 8; ++v) { grains::start(rigs[v]->voice); rigs[v]->voice.cycle = grains::census.cycle - 1; }
+        one = 0;
+        const u32 most = run(8, 800, 6, &one);
+        check(most <= grains::grain_budget, "eight voices together keep to the budget");
+        check(most >= grains::grain_budget - 8, "eight voices together use the budget");
+        // Six notes end: the two left take their grains back, with nothing left counted.
+        one = 0;
+        run(2, 800, 0, &one);
+        check(one == grains::grain_count, "voices left take their grains back when others end");
+        // A voice shedding grains fades them: no step from one sample to the next
+        // larger than its level falling the whole way over the fade.
+        grains::census = grains::Census();
+        Rig a(level16, frames);
+        dense(a);
+        for (u32 b = 0; b < 800; ++b) grains::render_sample(a.voice, a.block);
+        for (u32 v = 1; v < 8; ++v) { grains::start(rigs[v]->voice); rigs[v]->voice.cycle = grains::census.cycle - 1; }
+        i32 previous = a.out[2 * opxy::block_frames - 2], level = 0, step = 0;
+        for (u32 b = 0; b < 16; ++b) {
+            for (u32 v = 0; v < 8; ++v) {
+                Rig& r = v ? *rigs[v] : a;
+                grains::render_sample(r.voice, r.block);
+            }
+            for (u32 i = 0; i < opxy::block_frames; ++i) {
+                const i32 x = a.out[2 * i], d = x > previous ? x - previous : previous - x;
+                step = d > step ? d : step;
+                level = x > level ? x : level;
+                previous = x;
+            }
+        }
+        check(sounding(a.voice) <= grains::grain_budget / 8 + 1, "a voice sheds grains past its share");
+        check(step < level / 64, "a shed grain fades out");
+        // Every mode at full spry, long grains: eight voices keep to the budget.
+        for (u32 mode = 0; mode < grains::mode_count; ++mode) {
+            grains::census = grains::Census();
+            for (u32 v = 0; v < 8; ++v) {
+                delete rigs[v];
+                rigs[v] = new Rig(sine, frames);
+                dense(*rigs[v]);
+                rigs[v]->parameters[grains::kMode] = choice(mode, grains::mode_count);
+                rigs[v]->parameters[grains::kSpry] = at(1);
+                rigs[v]->parameters[grains::kSize] = at(1);
+            }
+            check(run(8, 1500, 6, 0) <= grains::grain_budget, "every mode keeps to the budget");
+        }
+        for (u32 v = 0; v < 8; ++v) delete rigs[v];
+    }
+    if (!failures) std::puts("PASS grains: silence, levels, freeze, scan, chords, pitch, sync, osc, shape, size, spry, reverse, window, budget");
     return failures ? 1 : 0;
 }
