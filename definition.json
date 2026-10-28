@@ -90,13 +90,16 @@
     {
       "id": "mode",
       "label": "mode",
-      "default": 0.166667,
+      "default": 0.083333,
       "mapping": {
         "kind": "enum",
         "labels": [
           "cloud",
           "sync",
-          "osc"
+          "osc",
+          "rcloud",
+          "rsync",
+          "rosc"
         ]
       },
       "display": "enum"

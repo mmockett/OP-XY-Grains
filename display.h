@@ -14,7 +14,8 @@ const opxy::u32 header_first = 2, pos_node = 10, scan_forward = 11, scan_back = 
 const opxy::u32 dash_lengths = 3;
 
 // A grain on the screen: drawn from the controls and time, not read from audio.
-struct ShownGrain { opxy::u16 age, life; opxy::u16 position; opxy::u8 note; opxy::u8 live; };
+// A grain on screen; life 0 when none. drift: its pitch off its lane, in pixels (spry's jitter).
+struct ShownGrain { opxy::u16 age, life; opxy::u16 position; opxy::u8 note; signed char drift; };
 
 struct DisplayState {
     opxy::draw::PageHeader header;

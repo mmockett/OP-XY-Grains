@@ -27,7 +27,7 @@ struct Rig {
     grains::Voice voice;
     Rig(const opxy::i16* data, u32 count) {
         // definition.json's defaults.
-        const double defaults[8] = {0, 0.853553, 0.392468, 0.428571, 0, 0.071429, 0.5, 0.166667};
+        const double defaults[8] = {0, 0.853553, 0.392468, 0.428571, 0, 0.071429, 0.5, 0.083333};
         for (u32 i = 0; i < 8; ++i) parameters[i] = at(defaults[i]);
         for (u32 i = 0; i < opxy::block_frames; ++i) pitch[i] = c4;
         block = opxy::SampleBlock();
@@ -70,10 +70,10 @@ int main() {
     }
     {   // Every chord and mode, dense and wide, on a full-scale square: within half scale.
         for (u32 chord = 0; chord < 7; ++chord)
-            for (u32 mode = 0; mode < 3; ++mode) {
+            for (u32 mode = 0; mode < grains::mode_count; ++mode) {
                 Rig r(square, frames);
                 r.parameters[grains::kChrd] = choice(chord, 7);
-                r.parameters[grains::kMode] = choice(mode, 3);
+                r.parameters[grains::kMode] = choice(mode, grains::mode_count);
                 r.parameters[grains::kDens] = at(1);
                 r.parameters[grains::kSpry] = at(1);
                 const i32 peak = r.run(100);
@@ -143,7 +143,7 @@ int main() {
     }
     {   // sync at 120 BPM: dens picks a half note (44100 samples) down to a 1/32 (2756).
         Rig r(sine, frames);
-        r.parameters[grains::kMode] = choice(1, 3);
+        r.parameters[grains::kMode] = choice(1, grains::mode_count);
         r.parameters[grains::kDens] = at(0);
         check(grains::interval(r.voice, grains::decode(r.voice, r.block), r.block) == 44100, "sync's longest division is a half note");
         r.parameters[grains::kDens] = at(1);
@@ -151,7 +151,7 @@ int main() {
     }
     {   // osc: grains evenly spaced, size over the overlap.
         Rig r(sine, frames);
-        r.parameters[grains::kMode] = choice(2, 3);
+        r.parameters[grains::kMode] = choice(2, grains::mode_count);
         r.parameters[grains::kDens] = at(1);   // 8 at once
         const grains::Settings s = grains::decode(r.voice, r.block);
         check(grains::interval(r.voice, s, r.block) == s.length * 256 / s.overlap8, "osc spaces grains evenly");
@@ -174,6 +174,54 @@ int main() {
         const u32 longest = grains::decode(r.voice, r.block).length;
         check(longest > 88000 && longest <= 88200, "size ends at 2 s");
     }
-    if (!failures) std::puts("PASS grains: silence, levels, freeze, scan, chords, pitch, sync, osc, shape, size");
+    {   // spry in stages, over 400 grains at each setting.
+        struct Spread { u32 reversed, min_pan, max_pan; double low_step, high_step; u32 short_len, long_len; };
+        auto spread = [&](double spry, u32 mode) {
+            Rig r(sine, frames);
+            r.parameters[grains::kSpry] = at(spry);
+            r.parameters[grains::kMode] = choice(mode, grains::mode_count);
+            const grains::Settings s = grains::decode(r.voice, r.block);
+            Spread out = {0, 16, 0, 1e9, 0, ~0u, 0};
+            for (u32 n = 0; n < 400; ++n) {
+                for (u32 k = 0; k < grains::grain_count; ++k) r.voice.grains[k].active = false;
+                r.voice.spawned = 0;   // chrd off: every grain on the root
+                grains::spawn(r.voice, s);
+                const grains::Grain& g = r.voice.grains[0];
+                out.reversed += g.reverse;
+                out.min_pan = g.pan < out.min_pan ? g.pan : out.min_pan;
+                out.max_pan = g.pan > out.max_pan ? g.pan : out.max_pan;
+                out.low_step = g.step < out.low_step ? g.step : out.low_step;
+                out.high_step = g.step > out.high_step ? g.step : out.high_step;
+                out.short_len = g.length < out.short_len ? g.length : out.short_len;
+                out.long_len = g.length > out.long_len ? g.length : out.long_len;
+            }
+            return out;
+        };
+        const double root = 65536, cents50 = std::pow(2.0, 50 / 1200.0);
+        const u32 length = grains::decode(Rig(sine, frames).voice, Rig(sine, frames).block).length;
+        Spread a = spread(0, 0);   // none: forward, centred, on pitch, one length
+        check(a.reversed == 0 && a.min_pan == 8 && a.max_pan == 8, "spry 0 keeps grains forward and centred");
+        check(a.low_step == a.high_step && std::fabs(a.low_step - root) < 2 && a.short_len == length && a.long_len == length,
+              "spry 0 keeps every grain's pitch and length");
+        a = spread(0, 3);          // rcloud: every grain backwards
+        check(a.reversed == 400, "a reversed mode plays every grain backwards");
+        a = spread(0.2, 0);        // under a quarter: some spread, nothing reversed, on pitch
+        check(a.reversed == 0 && a.min_pan < 8 && a.max_pan > 8 && a.max_pan < 16, "low spry spreads grains but keeps them forward");
+        check(a.low_step == a.high_step, "low spry keeps the pitch");
+        a = spread(0.5, 0);        // the middle: full width, a quarter reversed, still on pitch
+        check(a.min_pan == 0 && a.max_pan == 16, "spry reaches full width by the middle");
+        check(a.reversed > 60 && a.reversed < 140, "spry reverses some grains past a quarter");
+        check(a.low_step == a.high_step && a.short_len == length && a.long_len == length, "pitch and length jitter start past the middle");
+        a = spread(1, 0);          // the top: half reversed, up to 50 cents and half again in length
+        check(a.reversed > 160 && a.reversed < 240, "full spry reverses about half the grains");
+        check(a.low_step < root / std::pow(2.0, 30 / 1200.0) && a.low_step > root / cents50 * 0.999 &&
+              a.high_step > root * std::pow(2.0, 30 / 1200.0) && a.high_step < root * cents50 * 1.001,
+              "full spry detunes grains up to 50 cents either way");
+        check(a.short_len < length * 0.6 && a.short_len >= length / 2 - 1 &&
+              a.long_len > length * 1.4 && a.long_len <= length * 3 / 2 + 1, "full spry varies length by half either way");
+        a = spread(1, 4);          // rsync at full spry: about half turned forward again
+        check(a.reversed > 160 && a.reversed < 240, "full spry turns about half of a reversed mode's grains forward");
+    }
+    if (!failures) std::puts("PASS grains: silence, levels, freeze, scan, chords, pitch, sync, osc, shape, size, spry, reverse");
     return failures ? 1 : 0;
 }

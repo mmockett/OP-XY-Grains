@@ -32,7 +32,8 @@ straight above the stretch of sample it reads.
 - **pos**: a bright vertical line through the strip.
 - **scan**: an arrow off the top of the pos line, pointing the way it moves,
   longer when faster. At 0 (frozen) a short cap instead.
-- **spry**: two dotted lines either side of pos, at the spread grains start
+- **spry**: two dotted lines either side of pos, at the spread grains start;
+  past halfway, grains also drift a little off their note's lane
   within, kept inside the sample.
 - **Lanes**: root, +1 oct and +2 oct solid and labelled at the right; **chrd**'s
   other notes dotted (min: +3, +7, +15, +19; harm: ×3 at +19; 5th: +7, +19).

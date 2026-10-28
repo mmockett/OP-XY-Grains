@@ -20,10 +20,10 @@ pos, scan and spry choose where its grains read, so it needs no trim.
 
 | Page 1 | | Page 2 | |
 | --- | --- | --- | --- |
-| **pos** | where grains read, within the trims | **spry** | how far around pos grains start, and their stereo spread |
+| **pos** | where grains read | **spry** | how random each grain is: where it starts around pos, then its stereo spread, reversing some, and past halfway its pitch and length |
 | **scan** | how fast pos moves on: either way, up to 2x; the middle freezes it | **chrd** | off, a detune, or grains stacked on octaves, fifths, a major or minor chord, or harmonics |
 | **size** | each grain's length, 10 ms to 2 s | **shpe** | each grain's window, from a swell through smooth to a pluck |
-| **dens** | how many grains overlap, 1 to 8 (in sync mode, the division) | **mode** | cloud (random), sync (on the tempo's divisions) or osc (evenly overlapped) |
+| **dens** | how many grains overlap, 1 to 8 (in sync mode, the division) | **mode** | cloud (random), sync (on the tempo's divisions) or osc (evenly overlapped); rcloud, rsync and rosc play every grain backwards |
 
 Press any encoder to switch pages; Shift + turn makes fine steps. The OP-XY's
 own envelopes, LFOs, filter and effects apply as for any instrument.

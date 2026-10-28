@@ -79,10 +79,12 @@ struct Settings {
     i32 speed;              // scan, frames per output sample, Q16 (negative: backward)
     u32 length;             // a grain, samples
     u32 overlap8;           // grains sounding at once, Q8, 1..8
+    u32 chaos;              // spry, 0..65535: how random each grain is
     u32 spray;              // frames either side of the read point
     u32 chord;              // chord_table row
     u32 peak16;             // where the window peaks, 0..65535 through the grain
-    u32 mode;
+    u32 mode;               // kCloud, kSync or kOsc
+    bool backward;          // the mode's reversed variant: grains play backwards
     u32 rate;               // the played note's playback rate, Q16
 };
 
@@ -104,12 +106,15 @@ Settings decode(const Voice& voice, const opxy::SampleBlock& block) {
     s.speed = centred < 0 ? -speed : speed;
     s.length = curve(size_table, 5, level(p[kSize]));
     s.overlap8 = 256 + ((level(p[kDens]) * 7 * 256) >> 16);
-    s.spray = times(level(p[kSpry]), s.span >> 1);
+    s.chaos = level(p[kSpry]);
+    s.spray = times(s.chaos, s.span >> 1);
     s.chord = (level(p[kChrd]) * 7) >> 16;
     // shpe 0 peaks late (a swell), 0.5 in the middle, 1 early (a pluck); the
     // peak keeps a little of the grain on each side.
     s.peak16 = 2048 + (((65535 - level(p[kShpe])) * 61440u) >> 16);
-    s.mode = (level(p[kMode]) * 3) >> 16;
+    const u32 mode = (level(p[kMode]) * mode_count) >> 16;   // cloud, sync, osc, then each reversed
+    s.mode = mode % 3;
+    s.backward = mode >= 3;
     // The note's rate from middle C, the sample's own rate and the pad's tuning.
     s.rate = times(times(ratio(block.pitch[0], c4_increment), ratio(voice.sample.rate, 44100)),
                    cents_ratio(block.region.pitch_cents));
@@ -150,9 +155,23 @@ void spawn(Voice& voice, const Settings& s) {
     u32 r = chord_table[s.chord * 8 + n % count];
     if (s.chord == 1) r = detune_table[n % 8];
     g->step = times(s.rate, r);
+    // spry, in stages: position scatter from the start (above), stereo spread
+    // reaching full width by the middle, reversed grains from a quarter (up to
+    // half of them by three quarters), and from the middle up a random pitch,
+    // up to 50 cents either way, and length, up to half again either way.
+    const u32 jitter = s.chaos > 32768 ? (s.chaos - 32768) * 2 : 0;   // 0..65534
+    if (jitter) {
+        const i32 cents = i32(next_random(voice) % (2 * pitch_jitter_cents + 1)) - i32(pitch_jitter_cents);
+        g->step = times(g->step, cents_ratio(cents * i32(jitter >> 8) >> 8));
+    }
     if (!g->step) g->step = 1;
     // Its window: rising to the peak, then falling, over its length.
     g->length = s.length;
+    if (jitter) {
+        const i32 spread = (i32(next_random(voice) >> 16) - 32768) * i32(jitter >> 1) >> 15;   // -32768..32767
+        g->length = times(s.length, u32(65536 + spread));                                       // 0.5..1.5
+    }
+    if (g->length < 2) g->length = 2;
     g->peak = times(s.length, s.peak16);
     if (!g->peak) g->peak = 1;
     if (g->peak >= g->length) g->peak = g->length - 1;
@@ -160,12 +179,11 @@ void spawn(Voice& voice, const Settings& s) {
     g->fall = (64u << 16) / (g->length - g->peak);
     g->window = 0;
     g->age = 0;
-    // Spray also spreads grains across the stereo field and, past a quarter
-    // of the region, turns every other one around.
     const u32 r16 = next_random(voice) >> 16;
-    const u32 width = s.span ? s.spray * 16 / s.span : 0;   // 0..8
+    const u32 wide = (s.chaos * 17) >> 16, width = wide > 8 ? 8 : wide;   // 0..8, full from the middle
     g->pan = opxy::u8(8 + i32(r16 % (2 * width + 1)) - i32(width));
-    g->reverse = s.spray > s.span / 8 && (n & 1);
+    const u32 flips = s.chaos <= 16384 ? 0 : s.chaos - 16384 > 32768 ? 32768 : s.chaos - 16384;   // Q16 chance
+    g->reverse = s.backward != ((next_random(voice) >> 16) < flips);
     g->active = true;
 }
 }

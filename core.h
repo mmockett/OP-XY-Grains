@@ -5,6 +5,8 @@ namespace grains {
 // The controls, by saved parameter index (definition.json).
 enum Control : unsigned { kPos, kScan, kSize, kDens, kSpry, kChrd, kShpe, kMode };
 enum Mode : unsigned { kCloud, kSync, kOsc };
+const unsigned mode_count = 6;              // the three, then each with grains played backwards
+const opxy::i32 pitch_jitter_cents = 50;    // spry's widest random pitch, either way
 const unsigned grain_count = 8;
 
 // One grain: where it reads, how fast, and how far through its window it is.

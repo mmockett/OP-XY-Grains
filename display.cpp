@@ -58,7 +58,7 @@ const opxy::u8 lane_notes[7][8] = {{0}, {0}, {0, 12, 24}, {0, 7, 12, 19, 24},
                                    {0, 4, 7, 12, 16, 19, 24}, {0, 3, 7, 12, 15, 19, 24}, {0, 12, 19, 24}};
 const opxy::u8 lane_counts[7] = {1, 1, 3, 5, 7, 7, 4};
 const char* const chord_names[7] = {"off", "dtun", "oct", "5th", "maj", "min", "harm"};
-const char* const mode_names[3] = {"cloud", "sync", "osc"};
+const char* const mode_names[mode_count] = {"cloud", "sync", "osc", "rcloud", "rsync", "rosc"};
 const char* const divisions[5] = {"1/2", "1/4", "1/8", "1/16", "1/32"};
 
 u32 level(i32 v) { return v < 0 ? 0u : u32(v) >> 15; }          // 0..65535
@@ -164,7 +164,7 @@ u32 next_random(DisplayState& state) {
 // ms until the next grain, as the engine spaces them (sync at 120 BPM: the
 // screen has no tempo).
 u32 interval_ms(DisplayState& state, const Input& input) {
-    const u32 mode = choice(input.slots[kMode], 3), size = size_ms(input.slots[kSize]);
+    const u32 mode = choice(input.slots[kMode], mode_count) % 3, size = size_ms(input.slots[kSize]);
     const u32 overlap = overlap8(input.slots[kDens]);
     u32 ms;
     if (mode == kSync) ms = 1000u >> ((overlap - 256) * 5 / (7 * 256 + 1));
@@ -177,7 +177,7 @@ u32 interval_ms(DisplayState& state, const Input& input) {
 
 void spawn(DisplayState& state, const Input& input) {
     ShownGrain* g = 0;
-    for (u32 i = 0; i < grain_shown && !g; ++i) if (!state.grains[i].live) g = &state.grains[i];
+    for (u32 i = 0; i < grain_shown && !g; ++i) if (!state.grains[i].life) g = &state.grains[i];
     if (!g) return;
     const u32 pos = level(input.slots[kPos]), spray = level(input.slots[kSpry]) >> 1;
     i32 at = i32(pos) + i32(state.scan >> 0);
@@ -188,7 +188,10 @@ void spawn(DisplayState& state, const Input& input) {
     const u32 size = size_ms(input.slots[kSize]);
     g->life = opxy::u16(size < 150 ? 150 : size > 1500 ? 1500 : size);   // long enough to see
     g->age = 0;
-    g->live = 1;
+    // Past half spry, grains drift off their note, up to 50 cents (2 px) either way.
+    const u32 chaos = level(input.slots[kSpry]), jitter = chaos > 32768 ? (chaos - 32768) * 2 : 0;
+    g->drift = static_cast<signed char>(jitter ? i32(next_random(state) % 5) - 2 : 0);
+    if (jitter < 32768 && (next_random(state) & 1)) g->drift = 0;   // below three quarters, about half do
 }
 
 void place_grains(DisplayState& state, const Input& input, Frame& frame, const Sample& sample, bool moving) {
@@ -211,7 +214,7 @@ void place_grains(DisplayState& state, const Input& input, Frame& frame, const S
             g.note = opxy::u8(i);
             shade = 5;
         } else {
-            if (!g.live) { hide(frame, node); continue; }
+            if (!g.life) { hide(frame, node); continue; }
             // Brightest at the middle of its window: a triangle, dim to bright to dim.
             const u32 half = g.life / 2, t = g.age < half ? g.age : g.life - g.age;
             shade = 3 + (half ? t * 11 / half : 0);
@@ -219,6 +222,7 @@ void place_grains(DisplayState& state, const Input& input, Frame& frame, const S
         const u32 note = lane_notes[chord][g.note % lane_counts[chord]];
         i32 y = root_y - i32(note) * semitone_px;
         if (chord == 1) y += i32(g.note % 5) - 2;               // dtun scatters around the root
+        if (moving) y -= g.drift;
         const i32 x = strip_x(sample, g.position);
         place(frame, node, x * unit, y * unit, i32(scale), shade > 15 ? 15 : shade, stroke);
     }
@@ -228,7 +232,7 @@ void place_grains(DisplayState& state, const Input& input, Frame& frame, const S
 inline void display_reset(DisplayState& state) {
     state.header.reset();
     state.notes.reset();
-    for (u32 i = 0; i < grain_shown; ++i) state.grains[i].live = 0;
+    for (u32 i = 0; i < grain_shown; ++i) state.grains[i].life = 0;
     state.scan = 0;
     state.next = 0;
     state.random = 0x2545f491u;
@@ -242,14 +246,14 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     // Header: titles and real-unit captions for the two pages.
     const char* const titles[8] = {"pos", "scan", "size", "dens", "spry", "chrd", "shpe", "mode"};
     char values[8][header_capacity] = {};
-    const u32 mode = choice(input.slots[kMode], 3), chord = choice(input.slots[kChrd], 7);
+    const u32 mode = choice(input.slots[kMode], mode_count), chord = choice(input.slots[kChrd], 7);
     header_amount(values[kPos], header_capacity, input.slots[kPos]);
     signed_tenths(values[kScan], scan_rate(input.slots[kScan]) * 10 / 65536);
     const u32 size = size_ms(input.slots[kSize]);
     if (size < 1000) put(values[kSize], size)[0] = '\0';   // ms
     else { tenths(values[kSize], size / 100); copy(values[kSize] + 3, 2, "s"); }
     const u32 overlap = overlap8(input.slots[kDens]);
-    if (mode == kSync) copy(values[kDens], header_capacity, divisions[(overlap - 256) * 5 / (7 * 256 + 1)]);
+    if (mode % 3 == kSync) copy(values[kDens], header_capacity, divisions[(overlap - 256) * 5 / (7 * 256 + 1)]);
     else tenths(values[kDens], overlap * 10 >> 8);
     header_amount(values[kSpry], header_capacity, input.slots[kSpry]);
     copy(values[kChrd], header_capacity, chord_names[chord]);
@@ -260,7 +264,7 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
 
     // A track change starts afresh; grains move only while a note is held.
     if (state.track != input.track) {
-        for (u32 i = 0; i < grain_shown; ++i) state.grains[i].live = 0;
+        for (u32 i = 0; i < grain_shown; ++i) state.grains[i].life = 0;
         state.scan = 0;
         state.track = input.track;
     }
@@ -276,9 +280,9 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
         state.scan &= 0xffff;
         for (u32 i = 0; i < grain_shown; ++i) {
             ShownGrain& g = state.grains[i];
-            if (!g.live) continue;
+            if (!g.life) continue;
             g.age = opxy::u16(g.age + ms);
-            if (g.age >= g.life) g.live = 0;
+            if (g.age >= g.life) g.life = 0;
         }
         state.next = state.next > ms ? state.next - ms : 0;
         while (!state.next) {
@@ -286,7 +290,7 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
             state.next = interval_ms(state, input);
         }
     } else if (!held) {
-        for (u32 i = 0; i < grain_shown; ++i) state.grains[i].live = 0;
+        for (u32 i = 0; i < grain_shown; ++i) state.grains[i].life = 0;
     }
 
     // With no sample, the stage gives way to how to load one.
