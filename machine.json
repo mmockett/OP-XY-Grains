@@ -2,7 +2,7 @@
   "schema": 1,
   "sdk": "1.4",
   "kind": "sample",
-  "description": "Granular sample synth. For now a test of the stock sample page 2: it loops the region and beeps a control's number when it moves.",
+  "description": "A granular sample synth: grains read around a scanning position, stacked into chords.",
   "identity": {
     "engine": 52,
     "page": 2

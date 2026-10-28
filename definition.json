@@ -4,8 +4,81 @@
   "name": "Grains",
   "parameters": [
     {
-      "id": "s1",
-      "label": "S1",
+      "id": "pos",
+      "label": "pos",
+      "default": 0,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent"
+    },
+    {
+      "id": "scan",
+      "label": "scan",
+      "default": 0.853553,
+      "mapping": {
+        "kind": "linear",
+        "minimum": -1,
+        "maximum": 1
+      },
+      "display": "bipolar"
+    },
+    {
+      "id": "size",
+      "label": "size",
+      "default": 0.392472,
+      "mapping": {
+        "kind": "exponential",
+        "minimum": 0.01,
+        "maximum": 2
+      },
+      "display": "duration"
+    },
+    {
+      "id": "dens",
+      "label": "dens",
+      "default": 0.428571,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 1,
+        "maximum": 8
+      },
+      "display": "ratio"
+    },
+    {
+      "id": "spry",
+      "label": "spry",
+      "default": 0,
+      "mapping": {
+        "kind": "linear",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "display": "percent"
+    },
+    {
+      "id": "chrd",
+      "label": "chrd",
+      "default": 0.071429,
+      "mapping": {
+        "kind": "enum",
+        "labels": [
+          "off",
+          "dtun",
+          "oct",
+          "5th",
+          "maj",
+          "min",
+          "harm"
+        ]
+      },
+      "display": "enum"
+    },
+    {
+      "id": "shpe",
+      "label": "shpe",
       "default": 0.5,
       "mapping": {
         "kind": "linear",
@@ -15,85 +88,23 @@
       "display": "percent"
     },
     {
-      "id": "s2",
-      "label": "S2",
-      "default": 0.5,
+      "id": "mode",
+      "label": "mode",
+      "default": 0.166667,
       "mapping": {
-        "kind": "linear",
-        "minimum": 0,
-        "maximum": 1
+        "kind": "enum",
+        "labels": [
+          "cloud",
+          "sync",
+          "osc"
+        ]
       },
-      "display": "percent"
-    },
-    {
-      "id": "s3",
-      "label": "S3",
-      "default": 0.5,
-      "mapping": {
-        "kind": "linear",
-        "minimum": 0,
-        "maximum": 1
-      },
-      "display": "percent"
-    },
-    {
-      "id": "s4",
-      "label": "S4",
-      "default": 0.5,
-      "mapping": {
-        "kind": "linear",
-        "minimum": 0,
-        "maximum": 1
-      },
-      "display": "percent"
-    },
-    {
-      "id": "s5",
-      "label": "S5",
-      "default": 0.5,
-      "mapping": {
-        "kind": "linear",
-        "minimum": 0,
-        "maximum": 1
-      },
-      "display": "percent"
-    },
-    {
-      "id": "s6",
-      "label": "S6",
-      "default": 0.5,
-      "mapping": {
-        "kind": "linear",
-        "minimum": 0,
-        "maximum": 1
-      },
-      "display": "percent"
-    },
-    {
-      "id": "s7",
-      "label": "S7",
-      "default": 0.5,
-      "mapping": {
-        "kind": "linear",
-        "minimum": 0,
-        "maximum": 1
-      },
-      "display": "percent"
-    },
-    {
-      "id": "s8",
-      "label": "S8",
-      "default": 0.5,
-      "mapping": {
-        "kind": "linear",
-        "minimum": 0,
-        "maximum": 1
-      },
-      "display": "percent"
+      "display": "enum"
     }
   ],
   "presets": {},
   "resources": {
-    "voiceCapacity": 256
+    "voiceCapacity": 256,
+    "stereoOutput": 1
   }
 }
