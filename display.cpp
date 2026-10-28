@@ -3,6 +3,7 @@
 #include "display.h"
 #include "core.h"
 #include "tables.h"
+#include <opxy/sample_overview.hpp>
 
 namespace grains {
 namespace {
@@ -16,14 +17,40 @@ const i32 semitone_px = 4;                  // 24 semitones over 96 px
 // Shades (palette entries, black to white in 16 steps).
 const u32 lane = 2, dim = 6, mid = 9, bright = 14;
 
-// Until the SDK gives the screen the loaded sample's overview and length, a
-// stand-in: a spoken phrase's amplitude in 64 bins, 2.4 s long.
-const opxy::u8 placeholder[64] = {
-    20, 25, 36, 56, 85, 124, 168, 209, 237, 245, 230, 198, 157, 119, 91, 78,
-    79, 93, 115, 142, 169, 191, 204, 206, 196, 177, 151, 123, 97, 75, 61, 56,
-    62, 79, 107, 144, 184, 221, 247, 255, 249, 224, 188, 147, 108, 77, 56, 47,
-    49, 64, 88, 115, 136, 143, 133, 110, 81, 55, 36, 25, 19, 17, 16, 15};
-const u32 sample_ms = 2400;
+// Until the sample's overview has been read: a flat strip, 2.4 s long.
+const opxy::u8 flat[64] = {};
+const u32 flat_ms = 2400;
+
+// The sample as the screen shows it: its peaks, the outer markers the engine
+// plays between as fractions of the whole (Q16), and the lengths in ms of the
+// whole sample and of the part between the markers.
+struct Sample { const opxy::u8* peaks; u32 key; u32 begin, end; u32 whole_ms, span_ms; };
+
+Sample read_sample(const opxy::draw::SampleOverview& o) {
+    if (!o.loaded || !o.frames || !o.rate) return Sample{flat, 1, 0, 65536, flat_ms, flat_ms};
+    Sample s;
+    s.peaks = o.peaks;
+    u32 sum = 0;
+    for (u32 i = 0; i < 64; ++i) sum = sum * 31 + o.peaks[i];
+    s.key = (sum ^ o.frames) | 2;   // never the stand-in's 1
+    // Fractions of the whole: frames < 2^20, so frames << 8 stays inside 32 bits.
+    const u32 per = (o.frames + 255) >> 8;
+    s.begin = o.begin < o.frames ? (o.begin << 8) / per : 0;
+    s.end = o.end && o.end <= o.frames ? (o.end << 8) / per : 65536;
+    if (s.end > 65536) s.end = 65536;
+    if (s.end <= s.begin) { s.begin = 0; s.end = 65536; }
+    s.whole_ms = o.frames / (o.rate / 1000 ? o.rate / 1000 : 1);
+    s.span_ms = s.whole_ms * ((s.end - s.begin) >> 6) >> 10;
+    if (!s.whole_ms) s.whole_ms = 1;
+    if (!s.span_ms) s.span_ms = 1;
+    return s;
+}
+
+// A place within the markers (Q16 of the part played) as an x on the strip.
+i32 strip_x(const Sample& s, u32 within) {
+    const u32 at = s.begin + ((s.end - s.begin) >> 4) * (within & 0xffff) / 4096;
+    return left + i32(at * u32(width) >> 16);
+}
 
 // Each chord's notes in semitones as the lanes show them (harm rounds its
 // partials to the nearest semitone and shows those within two octaves).
@@ -74,20 +101,20 @@ void signed_tenths(char* out, i32 value) {
     tenths(out + 1, u32(value < 0 ? -value : value));
 }
 
-void place_strip(Frame& frame, bool held) {
+void place_strip(Frame& frame, const Sample& sample, bool held) {
     for (u32 h = 0; h < 2; ++h) {
         Frame::path_type& path = frame.paths[h];
-        if (path.key != 1) {
+        if (path.key != sample.key) {
             for (u32 i = 0; i < 32; ++i) {
                 // 32 bins out along the top, back along the bottom: a closed ribbon at scale 2.
                 const i32 x = i32(i) * 108 * unit / 31 - 54 * unit;
-                const i32 half = i32(placeholder[32 * h + i]) * 13 * unit / 510 + 307;
+                const i32 half = i32(sample.peaks[32 * h + i]) * 13 * unit / 510 + 307;
                 path.points[i].x = x;
                 path.points[i].y = -half;
                 path.points[63 - i].x = x;
                 path.points[63 - i].y = half;
             }
-            path.key = 1;
+            path.key = sample.key;
         }
         place(frame, h, (left + 108 + 216 * i32(h)) * unit, strip_y * unit, 2 * unit, held ? mid : dim, stroke);
     }
@@ -95,8 +122,8 @@ void place_strip(Frame& frame, bool held) {
 
 // scan is the read point's offset from pos while a note is held (Q16 of the
 // sample), so the marks follow it.
-void place_marks(Frame& frame, const Input& input, u32 scan) {
-    const i32 px = left + i32(((level(input.slots[kPos]) + scan) & 0xffff) * u32(width) >> 16);
+void place_marks(Frame& frame, const Input& input, const Sample& sample, u32 scan) {
+    const i32 px = strip_x(sample, level(input.slots[kPos]) + scan);
     place(frame, pos_node, px * unit, strip_y * unit, unit, bright, fill_and_stroke);
     const i32 rate = scan_rate(input.slots[kScan]);
     // The arrow grows with speed: 0.6x its length near the middle to 1.4x at 2x.
@@ -105,9 +132,11 @@ void place_marks(Frame& frame, const Input& input, u32 scan) {
     if (rate < 0) place(frame, scan_back, px * unit, (strip_y - 21) * unit, grow, bright, stroke); else hide(frame, scan_back);
     if (!rate) place(frame, scan_frozen, px * unit, (strip_y - 21) * unit, unit, bright, stroke); else hide(frame, scan_frozen);
     // spry: the spread grains start within, either side of pos.
-    const i32 spread = i32(level(input.slots[kSpry]) * u32(width / 2) >> 16);
+    const u32 span_px = u32(width) * ((sample.end - sample.begin) >> 4) >> 12;
+    const i32 spread = i32(level(input.slots[kSpry]) * (span_px / 2) >> 16);
     if (spread) {
-        const i32 lo = px - spread < left ? left : px - spread, hi = px + spread > left + width ? left + width : px + spread;
+        const i32 first = strip_x(sample, 0), last = strip_x(sample, 0xffff);
+        const i32 lo = px - spread < first ? first : px - spread, hi = px + spread > last ? last : px + spread;
         place(frame, spray_first, lo * unit, strip_y * unit, unit, dim, fill_and_stroke);
         place(frame, spray_first + 1, hi * unit, strip_y * unit, unit, dim, fill_and_stroke);
     } else {
@@ -162,10 +191,10 @@ void spawn(DisplayState& state, const Input& input) {
     g->live = 1;
 }
 
-void place_grains(DisplayState& state, const Input& input, Frame& frame, bool moving) {
+void place_grains(DisplayState& state, const Input& input, Frame& frame, const Sample& sample, bool moving) {
     const u32 chord = choice(input.slots[kChrd], 7);
     const u32 size = size_ms(input.slots[kSize]);
-    const u32 length_px = u32(width) * size / sample_ms;
+    const u32 length_px = u32(width) * size / sample.whole_ms;
     const u32 set = length_px < 10 ? 0 : length_px < 28 ? 1 : 2;
     const u32 authored[3] = {6, 16, 40};
     u32 scale = length_px * u32(unit) / authored[set];
@@ -190,7 +219,7 @@ void place_grains(DisplayState& state, const Input& input, Frame& frame, bool mo
         const u32 note = lane_notes[chord][g.note % lane_counts[chord]];
         i32 y = root_y - i32(note) * semitone_px;
         if (chord == 1) y += i32(g.note % 5) - 2;               // dtun scatters around the root
-        const i32 x = left + i32(u32(g.position) * u32(width) >> 16);
+        const i32 x = strip_x(sample, g.position);
         place(frame, node, x * unit, y * unit, i32(scale), shade > 15 ? 15 : shade, stroke);
     }
 }
@@ -208,6 +237,8 @@ inline void display_reset(DisplayState& state) {
 }
 
 inline void display(DisplayState& state, const Input& input, Frame& frame) {
+    const opxy::draw::SampleOverview& overview = *opxy_sample_overview();
+    const Sample sample = read_sample(overview);
     // Header: titles and real-unit captions for the two pages.
     const char* const titles[8] = {"pos", "scan", "size", "dens", "spry", "chrd", "shpe", "mode"};
     char values[8][header_capacity] = {};
@@ -239,9 +270,9 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     const bool moving = held && !input.reduced_motion;
     if (moving) {
         const u32 ms = u32(clamp(input.elapsed, 0, 102)) * 1000 >> 10;
-        // The scan moves the read point on at its rate, through a 2.4 s sample.
+        // The scan moves the read point on at its rate, through the part played.
         const i32 rate = scan_rate(input.slots[kScan]);
-        state.scan += u32(rate / i32(sample_ms) * i32(ms));
+        state.scan += u32(rate / i32(sample.span_ms) * i32(ms));
         state.scan &= 0xffff;
         for (u32 i = 0; i < grain_shown; ++i) {
             ShownGrain& g = state.grains[i];
@@ -258,9 +289,20 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
         for (u32 i = 0; i < grain_shown; ++i) state.grains[i].live = 0;
     }
 
-    place_strip(frame, held);
-    place_marks(frame, input, moving ? state.scan : 0);
+    // With no sample, the stage gives way to how to load one.
+    if (!overview.assigned) {
+        place_strip(frame, sample, false);   // every path keeps a shape, shown or not
+        place(frame, cover_stage, 0, 0, unit, 0, fill_and_stroke);
+        hide(frame, cover_hint);
+        for (u32 n = 0; n < grain_first + dash_lengths * grain_shown; ++n)
+            if (n < header_first || n >= pos_node) hide(frame, n);
+        return;
+    }
+    hide(frame, cover_stage);
+    place(frame, cover_hint, 0, 0, unit, 0, fill_and_stroke);
+    place_strip(frame, sample, held);
+    place_marks(frame, input, sample, moving ? state.scan : 0);
     place_lanes(frame, chord);
-    place_grains(state, input, frame, moving);
+    place_grains(state, input, frame, sample, moving);
 }
 }

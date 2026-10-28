@@ -3,11 +3,12 @@
 
 namespace grains {
 // Matches resources.display: paths, points, nodes, texts, palette (docs/SCREEN.md).
-using Frame = opxy::draw::Frame<2, 64, 45, 16, 16>;
+using Frame = opxy::draw::Frame<2, 64, 47, 16, 16>;
 
 // Nodes: the strip's two halves (the paths), the header's bar, then the marks.
 const opxy::u32 header_first = 2, pos_node = 10, scan_forward = 11, scan_back = 12, scan_frozen = 13,
-                spray_first = 14, lane_first = 16, lane_count = 5, grain_first = 21, grain_shown = 8;
+                spray_first = 14, lane_first = 16, lane_count = 5, grain_first = 21, grain_shown = 8,
+                cover_stage = 45, cover_hint = 46;   // with no sample: the stage hidden, the hint shown
 // Grains are dashes of three authored lengths (6, 16 and 40 px), eight of each.
 const opxy::u32 dash_lengths = 3;
 
