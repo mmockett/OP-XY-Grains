@@ -62,9 +62,20 @@ out.append(node(45, rect(0, 40, 480, 220), "#000000", 0.5, "#000000"))
 # never cuts a lane.
 out.append(f'<text transform="matrix(1 0 0 1 182 80)" fill="#CBCBCB" {FONT} font-size="20px">load a sample</text>')
 out.append(f'<text transform="matrix(1 0 0 1 196 97)" fill="#7D7D7D" {FONT} font-size="13px">shift +</text>')
-# The sample key's icon (a stand-in: a waveform in a rounded key), after "shift +".
-out.append('<path d="M241,86 L263,86 L265,88 L265,98 L263,100 L241,100 L239,98 L239,88 Z" fill="none" stroke="#7D7D7D" stroke-width="1"/>')
-out.append('<path d="M243,93 L246,89 L249,98 L252,90 L255,96 L258,92 L261,93 L258,93.6 L255,97.4 L252,91.4 L249,99.4 L246,90.4 L243,94 Z" fill="none" stroke="#7D7D7D" stroke-width="0.8"/>')
+# The Sample key's icon after "shift +": its rounded key, circle and seven
+# bars, traced from the key (472 px square) and drawn 20 px square.
+KEY = 20 / 472
+def key_xy(x, y):
+    return 240 + (x - 12) * KEY, 81 + (y - 12) * KEY
+corner = 24 * KEY
+out.append(f'<path d="{outline([(240 + corner, 81), (260 - corner, 81), (260, 81 + corner), (260, 101 - corner), (260 - corner, 101), (240 + corner, 101), (240, 101 - corner), (240, 81 + corner)])}" fill="none" stroke="#7D7D7D" stroke-width="0.8"/>')
+cx, cy = key_xy(248, 246)
+out.append(f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(153 * KEY)}" fill="none" stroke="#7D7D7D" stroke-width="0.7"/>')
+for x, top, bottom in ((181, 236, 258), (205, 236, 258), (230, 185, 308), (254, 212, 283),
+                       (279, 236, 258), (304, 236, 258), (328, 236, 258)):
+    bx, by0 = key_xy(x, top)
+    _, by1 = key_xy(x, bottom)
+    out.append(f'<path d="{rect(bx - 0.3, by0, bx + 0.3, by1)}" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>')
 out.append(node(46, rect(170, 60, 310, 101), "#000000", 0.5, "#000000"))
 
 # Nodes 0 and 1: the strip's halves, 64 distinct points each (display.cpp reshapes them).
