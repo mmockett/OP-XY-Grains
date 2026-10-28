@@ -15,9 +15,8 @@ open-xy.com catalog. Its CPU cost hasn't been measured on the device yet.
 
 Choose **Grains** on an instrument track, then load a sample (Shift + the
 Sample key). One sample plays across the keyboard, as on the stock sampler:
-the sample's root key plays it as recorded. Grains reads between the sample's
-start and end markers; how to edit them while Grains' screen is up is an open
-question in [etcetc000/open-xy#181](https://github.com/etcetc000/open-xy/pull/181).
+the sample's root key plays it as recorded. Grains reads the whole sample:
+pos, scan and spry choose where its grains read, so it needs no trim.
 
 | Page 1 | | Page 2 | |
 | --- | --- | --- | --- |
