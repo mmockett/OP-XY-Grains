@@ -105,6 +105,15 @@
   "presets": {},
   "resources": {
     "voiceCapacity": 256,
-    "stereoOutput": 1
+    "stereoOutput": 1,
+    "display": {
+      "stateBytes": 120,
+      "stateAlignment": 4,
+      "paths": 2,
+      "points": 64,
+      "nodes": 45,
+      "texts": 16,
+      "palette": 16
+    }
   }
 }

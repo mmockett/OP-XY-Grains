@@ -29,6 +29,8 @@ def node(i, d, stroke="#ffffff", width=1, fill="none"):
 
 
 out = [f'<g id="{ID}_panel">',
+       # Opaque: the screen is drawn over the stock sample page, which it hides.
+       '<path d="M0,0 L480,0 L480,220 L0,220 Z" fill="#000000"/>',
        "<!-- SDK two-page header: keep this block before machine artwork below y=38. -->",
        '<path d="M0,0 L480,0 L480,38 L0,38 Z" fill="#000000"/>']
 bar = ["#000000", "#323232", "#4B4B4B", "#646464", "#7D7D7D", "#969696", "#AFAFAF", "#CDCDCD"]
