@@ -49,34 +49,36 @@ for i, (x, y, ink, size) in enumerate(texts):
     out.append(f'<text id="{ID}_text_{i}" transform="matrix(1 0 0 1 {num(x)} {num(y)})" fill="{ink}" {FONT} '
                f'font-size="{size}px">-</text>')
 
-# Static: the octave lanes and their labels.
+# Static: the octave lanes' labels, at the right, beneath the stage's cover.
 for semis, label, x in ((0, "root", 437), (12, "+1 oct", 425), (24, "+2 oct", 425)):
-    y = ROOT_Y - semis * 4
-    out.append(f'<path d="{rect(LEFT, y - 0.3, LEFT + WIDTH, y + 0.3)}" fill="none" stroke="#3E3E3E" stroke-width="0.5"/>')
-    out.append(f'<text transform="matrix(1 0 0 1 {x} {y - 4})" fill="#6A6A6A" {FONT} font-size="10px">{label}</text>')
+    out.append(f'<text transform="matrix(1 0 0 1 {x} {ROOT_Y - semis * 4 - 4})" fill="#6A6A6A" {FONT} font-size="10px">{label}</text>')
 
 # With no sample: node 45 covers the stage (shown when empty) beneath the hint,
-# and node 46 covers the hint itself (shown when a sample is loaded).
+# and node 46 covers the hint (shown when a sample is loaded). The octave lanes
+# are nodes 47..49, drawn after both, so the hint's cover never cuts them; the
+# labels lie right of the hint, which its cover never reaches.
 out.append(node(45, rect(0, 40, 480, 220), "#000000", 0.5, "#000000"))
-# The hint sits between the +2 and +1 octave lanes (y 54 and 102), so its cover
-# never cuts a lane.
-out.append(f'<text transform="matrix(1 0 0 1 182 80)" fill="#CBCBCB" {FONT} font-size="20px">load a sample</text>')
-out.append(f'<text transform="matrix(1 0 0 1 196 97)" fill="#7D7D7D" {FONT} font-size="13px">shift +</text>')
+out.append(f'<text transform="matrix(1 0 0 1 166 108)" fill="#CBCBCB" {FONT} font-size="26px">load a sample</text>')
+out.append(f'<text transform="matrix(1 0 0 1 190 150)" fill="#7D7D7D" {FONT} font-size="18px">shift +</text>')
 # The Sample key's icon after "shift +": its rounded key, circle and seven
-# bars, traced from the key (472 px square) and drawn 20 px square.
-KEY = 20 / 472
+# bars, traced from the key (472 px square) and drawn 28 px square.
+KEY_SIZE, KEY_X, KEY_Y = 28, 256, 129
+KEY = KEY_SIZE / 472
 def key_xy(x, y):
-    return 240 + (x - 12) * KEY, 81 + (y - 12) * KEY
-corner = 24 * KEY
-out.append(f'<path d="{outline([(240 + corner, 81), (260 - corner, 81), (260, 81 + corner), (260, 101 - corner), (260 - corner, 101), (240 + corner, 101), (240, 101 - corner), (240, 81 + corner)])}" fill="none" stroke="#7D7D7D" stroke-width="0.8"/>')
+    return KEY_X + (x - 12) * KEY, KEY_Y + (y - 12) * KEY
+corner, x1, y1 = 24 * KEY, KEY_X + KEY_SIZE, KEY_Y + KEY_SIZE
+out.append(f'<path d="{outline([(KEY_X + corner, KEY_Y), (x1 - corner, KEY_Y), (x1, KEY_Y + corner), (x1, y1 - corner), (x1 - corner, y1), (KEY_X + corner, y1), (KEY_X, y1 - corner), (KEY_X, KEY_Y + corner)])}" fill="none" stroke="#7D7D7D" stroke-width="1"/>')
 cx, cy = key_xy(248, 246)
-out.append(f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(153 * KEY)}" fill="none" stroke="#7D7D7D" stroke-width="0.7"/>')
+out.append(f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(153 * KEY)}" fill="none" stroke="#7D7D7D" stroke-width="0.8"/>')
 for x, top, bottom in ((181, 236, 258), (205, 236, 258), (230, 185, 308), (254, 212, 283),
                        (279, 236, 258), (304, 236, 258), (328, 236, 258)):
     bx, by0 = key_xy(x, top)
     _, by1 = key_xy(x, bottom)
-    out.append(f'<path d="{rect(bx - 0.3, by0, bx + 0.3, by1)}" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>')
-out.append(node(46, rect(170, 60, 310, 101), "#000000", 0.5, "#000000"))
+    out.append(f'<path d="{rect(bx - 0.4, by0, bx + 0.4, by1)}" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>')
+out.append(node(46, rect(150, 82, 330, 162), "#000000", 0.5, "#000000"))
+for n, semis in ((47, 0), (48, 12), (49, 24)):
+    y = ROOT_Y - semis * 4
+    out.append(node(n, rect(LEFT, y - 0.3, LEFT + WIDTH, y + 0.3), "#3E3E3E", 0.5))
 
 # Nodes 0 and 1: the strip's halves, 64 distinct points each (display.cpp reshapes them).
 for h in range(2):

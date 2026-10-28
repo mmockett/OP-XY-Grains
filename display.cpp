@@ -15,7 +15,7 @@ using opxy::u32;
 const i32 left = 24, width = 432, root_y = 150, strip_y = 186;
 const i32 semitone_px = 4;                  // 24 semitones over 96 px
 // Shades (palette entries, black to white in 16 steps).
-const u32 lane = 2, dim = 6, mid = 9, bright = 14;
+const u32 lane = 2, octave = 4, dim = 6, mid = 9, bright = 14;
 
 // Until the sample's overview has been read: a flat strip, 2.4 s long.
 const opxy::u8 flat[64] = {};
@@ -296,10 +296,12 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
         hide(frame, cover_hint);
         for (u32 n = 0; n < grain_first + dash_lengths * grain_shown; ++n)
             if (n < header_first || n >= pos_node) hide(frame, n);
+        for (u32 i = 0; i < 3; ++i) hide(frame, octave_first + i);
         return;
     }
     hide(frame, cover_stage);
     place(frame, cover_hint, 0, 0, unit, 0, fill_and_stroke);
+    for (u32 i = 0; i < 3; ++i) place(frame, octave_first + i, 0, 0, unit, octave, stroke);
     place_strip(frame, sample, held);
     place_marks(frame, input, sample, moving ? state.scan : 0);
     place_lanes(frame, chord);

@@ -26,25 +26,25 @@
 <text id="grains_text_13" transform="matrix(1 0 0 1 185 33)" fill="#707070" font-family="UniversNextPro-Light" font-size="13px">-</text>
 <text id="grains_text_14" transform="matrix(1 0 0 1 305 33)" fill="#707070" font-family="UniversNextPro-Light" font-size="13px">-</text>
 <text id="grains_text_15" transform="matrix(1 0 0 1 425 33)" fill="#707070" font-family="UniversNextPro-Light" font-size="13px">-</text>
-<path d="M24,149.7 L456,149.7 L456,150.3 L24,150.3 Z" fill="none" stroke="#3E3E3E" stroke-width="0.5"/>
 <text transform="matrix(1 0 0 1 437 146)" fill="#6A6A6A" font-family="UniversNextPro-Light" font-size="10px">root</text>
-<path d="M24,101.7 L456,101.7 L456,102.3 L24,102.3 Z" fill="none" stroke="#3E3E3E" stroke-width="0.5"/>
 <text transform="matrix(1 0 0 1 425 98)" fill="#6A6A6A" font-family="UniversNextPro-Light" font-size="10px">+1 oct</text>
-<path d="M24,53.7 L456,53.7 L456,54.3 L24,54.3 Z" fill="none" stroke="#3E3E3E" stroke-width="0.5"/>
 <text transform="matrix(1 0 0 1 425 50)" fill="#6A6A6A" font-family="UniversNextPro-Light" font-size="10px">+2 oct</text>
 <path id="grains_node_45" d="M0,40 L480,40 L480,220 L0,220 Z" fill="#000000" stroke="#000000" stroke-width="0.5"/>
-<text transform="matrix(1 0 0 1 182 80)" fill="#CBCBCB" font-family="UniversNextPro-Light" font-size="20px">load a sample</text>
-<text transform="matrix(1 0 0 1 196 97)" fill="#7D7D7D" font-family="UniversNextPro-Light" font-size="13px">shift +</text>
-<path d="M241.0169,81 L258.9831,81 L260,82.0169 L260,99.9831 L258.9831,101 L241.0169,101 L240,99.9831 L240,82.0169 Z" fill="none" stroke="#7D7D7D" stroke-width="0.8"/>
-<circle cx="250" cy="90.9153" r="6.4831" fill="none" stroke="#7D7D7D" stroke-width="0.7"/>
-<path d="M246.861,90.4915 L247.461,90.4915 L247.461,91.4237 L246.861,91.4237 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
-<path d="M247.878,90.4915 L248.478,90.4915 L248.478,91.4237 L247.878,91.4237 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
-<path d="M248.9373,88.3305 L249.5373,88.3305 L249.5373,93.5424 L248.9373,93.5424 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
-<path d="M249.9542,89.4746 L250.5542,89.4746 L250.5542,92.4831 L249.9542,92.4831 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
-<path d="M251.0136,90.4915 L251.6136,90.4915 L251.6136,91.4237 L251.0136,91.4237 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
-<path d="M252.0729,90.4915 L252.6729,90.4915 L252.6729,91.4237 L252.0729,91.4237 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
-<path d="M253.0898,90.4915 L253.6898,90.4915 L253.6898,91.4237 L253.0898,91.4237 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
-<path id="grains_node_46" d="M170,60 L310,60 L310,101 L170,101 Z" fill="#000000" stroke="#000000" stroke-width="0.5"/>
+<text transform="matrix(1 0 0 1 166 108)" fill="#CBCBCB" font-family="UniversNextPro-Light" font-size="26px">load a sample</text>
+<text transform="matrix(1 0 0 1 190 150)" fill="#7D7D7D" font-family="UniversNextPro-Light" font-size="18px">shift +</text>
+<path d="M257.4237,129 L282.5763,129 L284,130.4237 L284,155.5763 L282.5763,157 L257.4237,157 L256,155.5763 L256,130.4237 Z" fill="none" stroke="#7D7D7D" stroke-width="1"/>
+<circle cx="270" cy="142.8814" r="9.0763" fill="none" stroke="#7D7D7D" stroke-width="0.8"/>
+<path d="M265.6254,142.2881 L266.4254,142.2881 L266.4254,143.5932 L265.6254,143.5932 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
+<path d="M267.0492,142.2881 L267.8492,142.2881 L267.8492,143.5932 L267.0492,143.5932 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
+<path d="M268.5322,139.2627 L269.3322,139.2627 L269.3322,146.5593 L268.5322,146.5593 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
+<path d="M269.9559,140.8644 L270.7559,140.8644 L270.7559,145.0763 L269.9559,145.0763 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
+<path d="M271.439,142.2881 L272.239,142.2881 L272.239,143.5932 L271.439,143.5932 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
+<path d="M272.922,142.2881 L273.722,142.2881 L273.722,143.5932 L272.922,143.5932 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
+<path d="M274.3458,142.2881 L275.1458,142.2881 L275.1458,143.5932 L274.3458,143.5932 Z" fill="#7D7D7D" stroke="#7D7D7D" stroke-width="0.3"/>
+<path id="grains_node_46" d="M150,82 L330,82 L330,162 L150,162 Z" fill="#000000" stroke="#000000" stroke-width="0.5"/>
+<path id="grains_node_47" d="M24,149.7 L456,149.7 L456,150.3 L24,150.3 Z" fill="none" stroke="#3E3E3E" stroke-width="0.5"/>
+<path id="grains_node_48" d="M24,101.7 L456,101.7 L456,102.3 L24,102.3 Z" fill="none" stroke="#3E3E3E" stroke-width="0.5"/>
+<path id="grains_node_49" d="M24,53.7 L456,53.7 L456,54.3 L24,54.3 Z" fill="none" stroke="#3E3E3E" stroke-width="0.5"/>
 <path id="grains_node_0" d="M-54,-1 L-50.5161,-1.5 L-47.0323,-1 L-43.5484,-1.5 L-40.0645,-1 L-36.5806,-1.5 L-33.0968,-1 L-29.6129,-1.5 L-26.129,-1 L-22.6452,-1.5 L-19.1613,-1 L-15.6774,-1.5 L-12.1935,-1 L-8.7097,-1.5 L-5.2258,-1 L-1.7419,-1.5 L1.7419,-1 L5.2258,-1.5 L8.7097,-1 L12.1935,-1.5 L15.6774,-1 L19.1613,-1.5 L22.6452,-1 L26.129,-1.5 L29.6129,-1 L33.0968,-1.5 L36.5806,-1 L40.0645,-1.5 L43.5484,-1 L47.0323,-1.5 L50.5161,-1 L54,-1.5 L54,1.5 L50.5161,1 L47.0323,1.5 L43.5484,1 L40.0645,1.5 L36.5806,1 L33.0968,1.5 L29.6129,1 L26.129,1.5 L22.6452,1 L19.1613,1.5 L15.6774,1 L12.1935,1.5 L8.7097,1 L5.2258,1.5 L1.7419,1 L-1.7419,1.5 L-5.2258,1 L-8.7097,1.5 L-12.1935,1 L-15.6774,1.5 L-19.1613,1 L-22.6452,1.5 L-26.129,1 L-29.6129,1.5 L-33.0968,1 L-36.5806,1.5 L-40.0645,1 L-43.5484,1.5 L-47.0323,1 L-50.5161,1.5 L-54,1 Z" fill="none" stroke="#666666" stroke-width="0.5"/>
 <path id="grains_node_1" d="M-54,-1 L-50.5161,-1.5 L-47.0323,-1 L-43.5484,-1.5 L-40.0645,-1 L-36.5806,-1.5 L-33.0968,-1 L-29.6129,-1.5 L-26.129,-1 L-22.6452,-1.5 L-19.1613,-1 L-15.6774,-1.5 L-12.1935,-1 L-8.7097,-1.5 L-5.2258,-1 L-1.7419,-1.5 L1.7419,-1 L5.2258,-1.5 L8.7097,-1 L12.1935,-1.5 L15.6774,-1 L19.1613,-1.5 L22.6452,-1 L26.129,-1.5 L29.6129,-1 L33.0968,-1.5 L36.5806,-1 L40.0645,-1.5 L43.5484,-1 L47.0323,-1.5 L50.5161,-1 L54,-1.5 L54,1.5 L50.5161,1 L47.0323,1.5 L43.5484,1 L40.0645,1.5 L36.5806,1 L33.0968,1.5 L29.6129,1 L26.129,1.5 L22.6452,1 L19.1613,1.5 L15.6774,1 L12.1935,1.5 L8.7097,1 L5.2258,1.5 L1.7419,1 L-1.7419,1.5 L-5.2258,1 L-8.7097,1.5 L-12.1935,1 L-15.6774,1.5 L-19.1613,1 L-22.6452,1.5 L-26.129,1 L-29.6129,1.5 L-33.0968,1 L-36.5806,1.5 L-40.0645,1 L-43.5484,1.5 L-47.0323,1 L-50.5161,1.5 L-54,1 Z" fill="none" stroke="#666666" stroke-width="0.5"/>
 <path id="grains_node_10" d="M-0.7,-19 L0.7,-19 L0.7,19 L-0.7,19 Z" fill="#e6e6e6" stroke="#e6e6e6" stroke-width="0.5"/>
