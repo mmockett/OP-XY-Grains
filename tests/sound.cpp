@@ -8,7 +8,7 @@ namespace {
 using opxy::i32;
 using opxy::u32;
 const u32 c4 = 25480119u, frames = 44100;
-opxy::i16 sine[frames], square[frames], soft[frames];
+opxy::i16 sine[frames], square[frames], soft[frames], level16[frames];
 int failures = 0;
 
 void check(bool ok, const char* what) {
@@ -56,6 +56,7 @@ int main() {
         sine[i] = opxy::i16(32767 * std::sin(2 * M_PI * 220.0 * i / 44100));
         square[i] = (i / 50) & 1 ? 32767 : -32768;
         soft[i] = opxy::i16(sine[i] / 8);   // well below the output ceiling
+        level16[i] = 16384;                  // a constant: the output is the window
     }
 
     {   // No sample: silence.
@@ -222,6 +223,34 @@ int main() {
         a = spread(1, 4);          // rsync at full spry: about half turned forward again
         check(a.reversed > 160 && a.reversed < 240, "full spry turns about half of a reversed mode's grains forward");
     }
-    if (!failures) std::puts("PASS grains: silence, levels, freeze, scan, chords, pitch, sync, osc, shape, size, spry, reverse");
+    {   // One grain at a time (osc, dens 1, 10 ms) on a constant sample: each output
+        // sample is its window, gain and pan, ramped a block segment at a time,
+        // within 1% of the window worked out sample by sample.
+        Rig r(level16, frames);
+        r.parameters[grains::kMode] = choice(2, grains::mode_count);
+        r.parameters[grains::kDens] = at(0);
+        r.parameters[grains::kSize] = at(0);
+        const u32 length = 441, peak = u32((2048 + ((65535 - 32767) * 61440u >> 16)) * 441ull >> 16);
+        const u32 rise = (64u << 16) / peak, fall = (64u << 16) / (length - peak);
+        double worst = 0;
+        for (u32 b = 0; b < 40; ++b) {
+            grains::render_sample(r.voice, r.block);
+            for (u32 i = 0; i < opxy::block_frames; ++i) {
+                const u32 t = (b * opxy::block_frames + i) % length;
+                const u32 top = 64u << 16;
+                const u32 w = t <= peak ? (t * rise > top ? top : t * rise)
+                                        : ((t - peak) * fall >= (peak * rise > top ? top : peak * rise) ? 0
+                                           : (peak * rise > top ? top : peak * rise) - (t - peak) * fall);
+                const u32 index = w >> 16, part = w & 0xffff;
+                const double window = index >= 64 ? grains::window_table[64] :
+                    grains::window_table[index] + (grains::window_table[index + 1] - grains::window_table[index]) * (part / 65536.0);
+                const double expected = 16384.0 * window * grains::gain_table[0] * 32767 / 1073741824.0;
+                const double off = std::fabs(r.out[2 * i] - expected) / (16384.0 * 32767 * grains::gain_table[0] * 32767 / 1073741824.0);
+                if (off > worst) worst = off;
+            }
+        }
+        check(worst < 0.01, "a grain's output follows its window");
+    }
+    if (!failures) std::puts("PASS grains: silence, levels, freeze, scan, chords, pitch, sync, osc, shape, size, spry, reverse, window");
     return failures ? 1 : 0;
 }
