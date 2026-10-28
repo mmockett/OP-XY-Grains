@@ -1,0 +1,131 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Grains screen</title>
+<style>
+  body { margin: 0; background: #161616; color: #9a9a9a; font: 13px/1.4 Menlo, monospace; padding: 24px; }
+  .board { display: grid; grid-template-columns: repeat(2, 960px); gap: 28px 32px; }
+  figure { margin: 0; }
+  svg { display: block; width: 960px; height: 440px; background: #000; border-radius: 6px; }
+  figcaption { margin-top: 8px; letter-spacing: .04em; }
+  figcaption b { color: #d0d0d0; font-weight: normal; }
+  h1 { color: #d0d0d0; font-weight: normal; font-size: 15px; margin: 0 0 16px; letter-spacing: .06em; }
+</style>
+<body>
+<h1>GRAINS · screen · Cloud with the Strip's position marks · 480 × 220, shown at 2×</h1>
+<div class="board" id="board"></div>
+<script>
+// The chosen Grains screen at the OP-XY's 480 x 220: the SDK's two-page header,
+// greyscale line art below y = 38, a cloud of grains by sample position (x) and
+// pitch (y) over the stage, and the sample's strip with pos, scan and spry below.
+const W = 480, H = 220;
+const SHADES = ['#000000', '#1c1c1c', '#2e2e2e', '#454545', '#5e5e5e', '#7d7d7d', '#a3a3a3', '#cbcbcb'];
+const GREY = '#5a5a5a', GREYV = '#707070', LINE = '#e6e6e6', DIM = '#6a6a6a', FAINT = '#2e2e2e', LANE = '#3e3e3e';
+const FONT = 'font-family="Helvetica Neue, Helvetica, Arial" font-weight="300"';
+const TITLES = ['pos', 'scan', 'size', 'dens', 'spry', 'chrd', 'shpe', 'mode'];
+
+function header(values, page) {
+  let s = '';
+  for (let i = 0; i < 8; i++) s += `<rect x="${i * 60}" y="${page ? 18 : 0}" width="60" height="20" fill="${SHADES[i]}"/>`;
+  const rows = page ? [1, 0] : [0, 1];
+  for (let c = 0; c < 4; c++) {
+    const lit = rows[0] * 4 + c, grey = rows[1] * 4 + c, ink = c < 2 ? '#cbcbcb' : '#000';
+    const ty = page ? 28 : 10, vy = page ? 35.4 : 17.4, gy = page ? 13 : 33;
+    s += `<text x="${5 + 120 * c}" y="${ty}" ${FONT} font-size="10" fill="${ink}">${TITLES[lit]}</text>`;
+    s += `<text x="${65 + 120 * c}" y="${vy}" ${FONT} font-size="20" fill="${ink}">${values[lit]}</text>`;
+    s += `<text x="${5 + 120 * c}" y="${gy}" ${FONT} font-size="10" fill="${GREY}">${TITLES[grey]}</text>`;
+    s += `<text x="${65 + 120 * c}" y="${gy}" ${FONT} font-size="13" fill="${GREYV}">${values[grey]}</text>`;
+  }
+  return s;
+}
+
+const ENV = Array.from({length: 32}, (_, i) => {
+  const x = i / 31, word = (c, w) => Math.exp(-(((x - c) / w) ** 2));
+  return Math.min(1, 0.06 + 0.9 * word(0.14, 0.07) + 0.75 * word(0.36, 0.09) + 0.95 * word(0.62, 0.08) + 0.5 * word(0.84, 0.06));
+});
+function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+const poly = pts => pts.map(p => p.map(v => v.toFixed(1)).join(' ')).join(' L');
+
+// Layout, stage coordinates of the screen.
+const X0 = 24, X1 = 456;                 // the sample's span, shared by the cloud and the strip
+const TOP = 54, ROOT = 150;              // the cloud: +24 semitones at TOP, the root at ROOT
+const STRIP = 186, HALF = 13;            // the strip's centre line and half height
+const yOf = semis => ROOT - semis / 24 * (ROOT - TOP);
+const xOf = pos => X0 + (X1 - X0) * pos;
+const clampX = x => Math.max(X0, Math.min(X1 - 40, x));   // inside the sample, clear of the lane labels
+
+// Path 0: the sample's overview, one closed 64-point ribbon.
+function strip(lit) {
+  const top = ENV.map((e, i) => [X0 + (X1 - X0) * i / 31, STRIP - e * HALF - 0.6]);
+  const bottom = ENV.map((e, i) => [X0 + (X1 - X0) * i / 31, STRIP + e * HALF + 0.6]).reverse();
+  return `<path d="M${poly(top.concat(bottom))} Z" fill="none" stroke="${lit ? '#9a9a9a' : DIM}"/>`;
+}
+// Nodes: pos's bright line through the strip, scan's arrow on it, spry's dotted bounds.
+function marks(pos, spray, scan) {
+  const px = xOf(pos), sw = (X1 - X0) * spray, y0 = STRIP - HALF - 6, y1 = STRIP + HALF + 6;
+  const lo = Math.max(X0, px - sw), hi = Math.min(X1, px + sw);
+  let s = `<path d="M${lo} ${y0} L${lo} ${y1} M${hi} ${y0} L${hi} ${y1}" stroke="${DIM}" stroke-dasharray="2 2"/>`;
+  s += `<path d="M${px} ${y0 - 2} L${px} ${y1}" stroke="#e6e6e6" stroke-width="1.4"/>`;
+  if (scan) {
+    const d = Math.sign(scan), len = 6 + 10 * Math.min(1, Math.abs(scan));
+    s += `<path d="M${px} ${y0 - 2} l${d * len} 0 m${-d * 3} -3 l${d * 3} 3 l${-d * 3} 3" fill="none" stroke="#e6e6e6"/>`;
+  } else {
+    s += `<path d="M${px - 3} ${y0 - 2} L${px + 3} ${y0 - 2}" stroke="#e6e6e6"/>`;   // frozen: a cap, no arrow
+  }
+  return s;
+}
+// The lanes: root, octaves solid; the chord's other notes dotted.
+function lanes(notes) {
+  let s = '';
+  for (const n of [0, 12, 24]) s += `<path d="M${X0} ${yOf(n)} L${X1} ${yOf(n)}" stroke="${LANE}"/>`;
+  for (const n of notes) if (n % 12) s += `<path d="M${X0} ${yOf(n)} L${X1} ${yOf(n)}" stroke="${LANE}" stroke-dasharray="1 3"/>`;
+  s += `<text x="${X1}" y="${yOf(24) - 4}" ${FONT} font-size="10" fill="${DIM}" text-anchor="end">+2 oct</text>`;
+  s += `<text x="${X1}" y="${yOf(12) - 4}" ${FONT} font-size="10" fill="${DIM}" text-anchor="end">+1 oct</text>`;
+  s += `<text x="${X1}" y="${yOf(0) - 4}" ${FONT} font-size="10" fill="${DIM}" text-anchor="end">root</text>`;
+  return s;
+}
+// A grain: a dash on its note at the stretch it reads, as long as it lasts,
+// lit by how far through its window it is.
+function grain(x, y, length, light) {
+  const shade = SHADES[Math.max(2, Math.min(7, Math.round(2 + 5 * light)))];
+  return `<path d="M${x - length / 2} ${y - 1.3} L${x + length / 2} ${y - 1.3} L${x + length / 2} ${y + 1.3} L${x - length / 2} ${y + 1.3} Z" fill="none" stroke="${shade}" stroke-width="${light > 0.6 ? 1.4 : 1}"/>`;
+}
+
+function screen(st) {
+  const {pos, spray, size, scan, notes, detune, held, page, values, seed, count} = st;
+  let s = header(values, page) + lanes(notes) + strip(held) + marks(pos, spray, scan);
+  const r = rng(seed), length = Math.max(4, (X1 - X0) * size), px = xOf(pos), sw = (X1 - X0) * spray;
+  if (!held) {
+    // At rest: one still grain per note at pos, a preview of where notes will read.
+    for (const n of notes) s += grain(px, yOf(n), length, 0.3);
+    return s;
+  }
+  for (let g = 0; g < count; g++) {
+    const n = notes[g % notes.length], light = Math.sin(Math.PI * r());
+    const x = clampX(px + (r() * 2 - 1) * sw);
+    const y = yOf(n) + (detune ? (r() * 2 - 1) * detune : 0);
+    s += grain(x, y, length, light);
+  }
+  return s;
+}
+
+const SCREENS = [
+  ['at rest, chrd off', 'one still grain at pos; the strip is dim until a note plays',
+   {pos: 0.36, spray: 0.04, size: 0.05, scan: 0, notes: [0], held: false, page: 0, seed: 1, count: 0,
+    values: ['36', '0', '80', '64', '8', 'off', '50', 'cld']}],
+  ['note held, chrd min', 'grains stack on the triad over two octaves, scanning forward',
+   {pos: 0.6, spray: 0.1, size: 0.045, scan: 0.5, notes: [0, 3, 7, 12, 15, 19, 24], held: true, page: 0, seed: 21, count: 18,
+    values: ['60', '+12', '60', '80', '20', 'min', '50', 'cld']}],
+  ['note held, chrd harm, page 2', 'harmonics x2, x3, x4 on the lanes; scan backward',
+   {pos: 0.24, spray: 0.06, size: 0.08, scan: -0.3, notes: [0, 12, 19, 24], held: true, page: 1, seed: 7, count: 12,
+    values: ['24', '-6', '100', '56', '12', 'harm', '64', 'osc']}],
+  ['note held, chrd dtun, wide spry, frozen', 'detune scatters grains around the root; scan 0 freezes pos',
+   {pos: 0.82, spray: 0.16, size: 0.03, scan: 0, notes: [0], detune: 9, held: true, page: 0, seed: 33, count: 16,
+    values: ['82', '0', '40', '96', '32', 'dtun', '50', 'cld']}],
+];
+for (const [name, note, st] of SCREENS) {
+  const fig = document.createElement('figure');
+  fig.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${screen(st)}</svg><figcaption><b>${name}</b> · ${note}</figcaption>`;
+  document.getElementById('board').append(fig);
+}
+</script>
+</body>
