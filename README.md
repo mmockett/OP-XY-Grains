@@ -15,8 +15,9 @@ open-xy.com catalog. Its CPU cost hasn't been measured on the device yet.
 
 Choose **Grains** on an instrument track, then load a sample (Shift + the
 Sample key). One sample plays across the keyboard, as on the stock sampler:
-the sample's root key plays it as recorded. Its start and end trims bound
-where grains read.
+the sample's root key plays it as recorded. Grains reads between the sample's
+start and end markers; how to edit them while Grains' screen is up is an open
+question in [etcetc000/open-xy#181](https://github.com/etcetc000/open-xy/pull/181).
 
 | Page 1 | | Page 2 | |
 | --- | --- | --- | --- |
@@ -34,12 +35,14 @@ Grains is a sample engine on the stock sample page (page 2) that plays like the
 sampler and draws its own screen. Three changes to the
 [Open-XY SDK](https://github.com/etcetc000/open-xy) make that possible:
 
-1. sample engines on the sampler page: one sample played chromatically, and
-   the encoders on the engine's own controls;
-2. sample engines with their own screen;
-3. the sample's overview for that screen.
+1. sample engines on the sampler page, playing one sample chromatically
+   ([#180](https://github.com/etcetc000/open-xy/pull/180));
+2. sample engines with their own screen, the encoders on their own controls
+   ([#181](https://github.com/etcetc000/open-xy/pull/181));
+3. the sample's overview for that screen
+   ([#182](https://github.com/etcetc000/open-xy/pull/182)).
 
-They're proposed as pull requests to `etcetc000/open-xy`. Until they merge,
+They're open as pull requests to `etcetc000/open-xy`. Until they merge,
 build Grains with [mmockett/open-xy](https://github.com/mmockett/open-xy) on
 `sdk/sample-overview`, the branch that holds all three, checked out beside this
 repository as `../open-xy`:
