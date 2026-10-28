@@ -6,8 +6,10 @@ on:
 permissions:
   contents: read
 env:
-  # Development follows staging; pin a compatible SDK commit for a release.
-  OPEN_XY_REF: staging
+  # Grains needs SDK changes still in review (README.md), on this fork's branch;
+  # move to etcetc000/open-xy staging once they merge.
+  OPEN_XY_REPO: mmockett/open-xy
+  OPEN_XY_REF: sdk/sample-overview
 jobs:
   machine:
     runs-on: ubuntu-latest
@@ -17,7 +19,7 @@ jobs:
           path: machine
       - uses: actions/checkout@v4
         with:
-          repository: etcetc000/open-xy
+          repository: ${{ env.OPEN_XY_REPO }}
           ref: ${{ env.OPEN_XY_REF }}
           path: open-xy
       - uses: actions/setup-python@v5
@@ -40,7 +42,7 @@ jobs:
           path: machine
       - uses: actions/checkout@v4
         with:
-          repository: etcetc000/open-xy
+          repository: ${{ env.OPEN_XY_REPO }}
           ref: ${{ env.OPEN_XY_REF }}
           path: open-xy
       - uses: actions/setup-python@v5
