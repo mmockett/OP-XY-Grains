@@ -5,7 +5,7 @@ keyboard: grains read around a position that can scan through it, stack into
 chords and spread across the stereo field, and the screen shows each grain
 where it reads and at what pitch.
 
-![Grains' screen: no sample loaded, at rest, and while a note plays](docs/screen/preview.png)
+![Grains' screen: no sample loaded, at rest, while a note plays, and with a minor chord](docs/screen/preview.png)
 
 **Status: experimental.** Grains plays on an OP-XY running OS 1.2.1, but it
 needs SDK features that aren't in Open-XY yet (below), so it isn't in the
@@ -75,8 +75,10 @@ describes. Command-line builds carry no presets; the OP-XY lists Grains once
 - `tests/sound.cpp`: the engine's sound tests, which `sdk.py test` runs.
 
 Sample engines have no browser preview of their own. `docs/screen/preview.png`
-was rendered by running `display.cpp` through a throwaway synth with the same
-screen in the SDK's preview. Agent instructions are in [AGENTS.md](AGENTS.md).
+was rendered by running `display.cpp` through a stand-in synth with the same
+screen in the SDK's preview, at the OP-XY's 480 × 220 and in its screen font,
+Univers Next Pro Light
+([mmockett/OP-XY's renderer](https://github.com/mmockett/OP-XY/tree/main/tools/render)). Agent instructions are in [AGENTS.md](AGENTS.md).
 
 ## Licence
 
