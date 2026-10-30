@@ -49,7 +49,7 @@
 <path id="grains_node_1" d="M-54,-1 L-50.5161,-1.5 L-47.0323,-1 L-43.5484,-1.5 L-40.0645,-1 L-36.5806,-1.5 L-33.0968,-1 L-29.6129,-1.5 L-26.129,-1 L-22.6452,-1.5 L-19.1613,-1 L-15.6774,-1.5 L-12.1935,-1 L-8.7097,-1.5 L-5.2258,-1 L-1.7419,-1.5 L1.7419,-1 L5.2258,-1.5 L8.7097,-1 L12.1935,-1.5 L15.6774,-1 L19.1613,-1.5 L22.6452,-1 L26.129,-1.5 L29.6129,-1 L33.0968,-1.5 L36.5806,-1 L40.0645,-1.5 L43.5484,-1 L47.0323,-1.5 L50.5161,-1 L54,-1.5 L54,1.5 L50.5161,1 L47.0323,1.5 L43.5484,1 L40.0645,1.5 L36.5806,1 L33.0968,1.5 L29.6129,1 L26.129,1.5 L22.6452,1 L19.1613,1.5 L15.6774,1 L12.1935,1.5 L8.7097,1 L5.2258,1.5 L1.7419,1 L-1.7419,1.5 L-5.2258,1 L-8.7097,1.5 L-12.1935,1 L-15.6774,1.5 L-19.1613,1 L-22.6452,1.5 L-26.129,1 L-29.6129,1.5 L-33.0968,1 L-36.5806,1.5 L-40.0645,1 L-43.5484,1.5 L-47.0323,1 L-50.5161,1.5 L-54,1 Z" fill="none" stroke="#666666" stroke-width="0.5"/>
 <path id="grains_node_10" d="M-0.7,-19 L0.7,-19 L0.7,19 L-0.7,19 Z" fill="#e6e6e6" stroke="#e6e6e6" stroke-width="0.5"/>
 <path id="grains_node_11" d="M0,-0.5 L8,-0.5 L8,-3 L11,0 L8,3 L8,0.5 L0,0.5 Z" fill="none" stroke="#ffffff" stroke-width="1"/>
-<path id="grains_node_12" d="M0,-0.5 L-8,-0.5 L-8,-3 L-11,0 L-8,3 L-8,0.5 L0,0.5 Z" fill="none" stroke="#ffffff" stroke-width="1"/>
+<path id="grains_node_12" d="M0,-0.15 L64,-0.15 L64,0.15 L0,0.15 Z" fill="none" stroke="#ffffff" stroke-width="1"/>
 <path id="grains_node_13" d="M-3,-0.5 L3,-0.5 L3,0.5 L-3,0.5 Z" fill="none" stroke="#ffffff" stroke-width="1"/>
 <path id="grains_node_14" d="M-0.4,-19 L0.4,-19 L0.4,19 L-0.4,19 Z" fill="#666666" stroke="#666666" stroke-width="0.5"/>
 <path id="grains_node_15" d="M-0.4,-19 L0.4,-19 L0.4,19 L-0.4,19 Z" fill="#666666" stroke="#666666" stroke-width="0.5"/>
@@ -57,7 +57,7 @@
 <path id="grains_node_17" d="M0,-0.3 L432,-0.3 L432,0.3 L0,0.3 Z" fill="none" stroke="#444444" stroke-width="0.5"/>
 <path id="grains_node_18" d="M0,-0.3 L432,-0.3 L432,0.3 L0,0.3 Z" fill="none" stroke="#444444" stroke-width="0.5"/>
 <path id="grains_node_19" d="M0,-0.3 L432,-0.3 L432,0.3 L0,0.3 Z" fill="none" stroke="#444444" stroke-width="0.5"/>
-<path id="grains_node_20" d="M0,-0.3 L432,-0.3 L432,0.3 L0,0.3 Z" fill="none" stroke="#444444" stroke-width="0.5"/>
+<path id="grains_node_20" d="M0,-0.15 L64,-0.15 L64,0.15 L0,0.15 Z" fill="none" stroke="#ffffff" stroke-width="1"/>
 <path id="grains_node_21" d="M-3,-1.3 L3,-1.3 L3,1.3 L-3,1.3 Z" fill="none" stroke="#ffffff" stroke-width="1"/>
 <path id="grains_node_22" d="M-3,-1.3 L3,-1.3 L3,1.3 L-3,1.3 Z" fill="none" stroke="#ffffff" stroke-width="1"/>
 <path id="grains_node_23" d="M-3,-1.3 L3,-1.3 L3,1.3 L-3,1.3 Z" fill="none" stroke="#ffffff" stroke-width="1"/>

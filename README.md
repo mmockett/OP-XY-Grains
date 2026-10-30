@@ -9,7 +9,10 @@ where it reads and at what pitch.
 
 **Status: experimental.** Grains plays on an OP-XY running OS 1.2.1, but it
 needs SDK features that aren't in Open-XY yet (below), so it isn't in the
-open-xy.com catalog. Its CPU cost hasn't been measured on the device yet.
+open-xy.com catalog. Its render callback measures 3.105% of the
+stock block budget on the device (v1.0.0, median of 3 runs of
+`opxy-sample-callback-v1`, graphics excluded); that isn't total device CPU, or
+a worst-case settings sweep.
 
 ## Playing it
 
@@ -22,8 +25,8 @@ pos, scan and spry choose where its grains read, so it needs no trim.
 | --- | --- | --- | --- |
 | **pos** | where grains read | **spry** | how random each grain is: where it starts around pos, then its stereo spread, reversing some, and past halfway its pitch and length |
 | **scan** | how fast pos moves on: either way, up to 2x; the middle freezes it | **chrd** | off, a detune, or grains stacked on octaves, fifths, a major or minor chord, or harmonics |
-| **size** | each grain's length, 10 ms to 2 s | **shpe** | each grain's window, from a swell through smooth to a pluck |
-| **dens** | how many grains overlap, 1 to 20 (in sync mode, the division) | **mode** | cloud (random), sync (on the tempo's divisions) or osc (evenly overlapped); rcloud, rsync and rosc play every grain backwards |
+| **size** | each grain's length, 10 ms to 2 s | **shpe** | each grain's window, from a swell through smooth to a pluck; the screen draws it under pos |
+| **dens** | how many grains overlap, 1 to 20 (in sync mode, the division) | **mode** | cloud (random), sync (on the tempo's divisions) or osc (evenly overlapped); rcld, rsync and rosc play every grain backwards |
 
 Press any encoder to switch pages; Shift + turn makes fine steps. The OP-XY's
 own envelopes, LFOs, filter and effects apply as for any instrument.

@@ -40,8 +40,12 @@ straight above the stretch of sample it reads.
   dtun draws no extra lanes.
 - **Grains**: a dash per live grain, on its note's lane at the position it
   reads, as long as **size** spans in the sample. Its shade follows its window:
-  dim as it starts, brightest at its middle, dim as it ends. dtun scatters
-  them a few pixels around the root.
+  dim as it starts, brightest at its window's peak, dim as it ends. dtun
+  scatters them a few pixels around the root.
+- **shpe**: the grain's window, drawn under the pos line: two lines from a
+  peak down to feet 48 px apart on the screen's bottom edge. The peak slides
+  from the right (0, a swell) to the left (100, a pluck), where the engine
+  puts it.
 
 ## Motion
 
@@ -65,9 +69,10 @@ slots):
 | --- | --- |
 | Header | 8 bar nodes and all 16 text slots |
 | Strip | path 0 |
-| pos, scan, spry | 4 nodes (line, arrow, cap, a pair of dotted lines) |
-| Lanes | 8 nodes (3 octaves, up to 5 chord notes) and 3 static labels |
+| pos, scan, spry | 5 nodes (line, arrow, cap, a pair of dotted lines) |
+| shpe | 2 nodes (the window's edges, sharing the peak as their pivot) |
+| Lanes | 7 nodes (3 octaves, up to 4 chord notes) and 3 static labels |
 | Grains | 24 nodes, the most grains shown at once; dashes in 3 authored lengths for short, medium and long sizes, scaled within each (a node scales uniformly, at most 2×) |
 
-About 44 nodes and 1 path, leaving room for later parts. Lane labels are static
+50 nodes and 2 paths, leaving room for later parts. Lane labels are static
 `<text>` in the device font; the header takes every text slot.

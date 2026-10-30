@@ -86,13 +86,14 @@ for h in range(2):
     back = [(x, -y) for x, y in reversed(top)]
     out.append(node(h, outline(top + back), "#666666", 0.5))
 out.append(node(10, rect(-0.7, -19, 0.7, 19), "#e6e6e6", 0.5, "#e6e6e6"))                     # pos
-out.append(node(11, outline([(0, -0.5), (8, -0.5), (8, -3), (11, 0), (8, 3), (8, 0.5), (0, 0.5)])))   # scan forward
-out.append(node(12, outline([(0, -0.5), (-8, -0.5), (-8, -3), (-11, 0), (-8, 3), (-8, 0.5), (0, 0.5)])))  # scan back
+out.append(node(11, outline([(0, -0.5), (8, -0.5), (8, -3), (11, 0), (8, 3), (8, 0.5), (0, 0.5)])))   # scan, turned to point back
+out.append(node(12, rect(0, -0.15, 64, 0.15)))                                                 # shpe's window, rising
 out.append(node(13, rect(-3, -0.5, 3, 0.5)))                                                   # scan frozen
 for i in (14, 15):
     out.append(node(i, rect(-0.4, -19, 0.4, 19), "#666666", 0.5, "#666666"))                   # spry
-for i in range(16, 21):
+for i in range(16, 20):
     out.append(node(i, rect(0, -0.3, WIDTH, 0.3), "#444444", 0.5))                              # chord lanes
+out.append(node(20, rect(0, -0.15, 64, 0.15)))                                                 # shpe's window, falling
 for s, length in enumerate((6, 16, 40)):
     for g in range(8):
         out.append(node(21 + 8 * s + g, rect(-length / 2, -1.3, length / 2, 1.3)))           # grains

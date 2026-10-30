@@ -58,7 +58,7 @@ const opxy::u8 lane_notes[7][8] = {{0}, {0}, {0, 12, 24}, {0, 7, 12, 19, 24},
                                    {0, 4, 7, 12, 16, 19, 24}, {0, 3, 7, 12, 15, 19, 24}, {0, 12, 19, 24}};
 const opxy::u8 lane_counts[7] = {1, 1, 3, 5, 7, 7, 4};
 const char* const chord_names[7] = {"off", "dtun", "oct", "5th", "maj", "min", "harm"};
-const char* const mode_names[mode_count] = {"cloud", "sync", "osc", "rcloud", "rsync", "rosc"};
+const char* const mode_names[mode_count] = {"cloud", "sync", "osc", "rcld", "rsync", "rosc"};
 const char* const divisions[5] = {"1/2", "1/4", "1/8", "1/16", "1/32"};
 
 u32 level(i32 v) { return v < 0 ? 0u : u32(v) >> 15; }          // 0..65535
@@ -79,6 +79,9 @@ u32 size_ms(i32 v) {
     return samples * 10 / 441;
 }
 u32 overlap8(i32 v) { return 256 + ((level(v) * (grain_count - 1) * 256) >> 16); }
+// Where shpe puts a grain's window peak, Q16 through the grain, as the engine does:
+// late at 0 (a swell), the middle at 0.5, early at 1 (a pluck).
+u32 window_peak(i32 v) { return 2048 + (((65535 - level(v)) * 61440u) >> 16); }
 
 // Captions.
 char* put(char* out, u32 value) {
@@ -120,16 +123,50 @@ void place_strip(Frame& frame, const Sample& sample, bool held) {
     }
 }
 
+u32 root(u32 value) {
+    u32 result = 0;
+    for (u32 bit = 1u << 30; bit; bit >>= 2) {
+        if (value >= result + bit) { value -= result + bit; result = (result >> 1) + bit; }
+        else result >>= 1;
+    }
+    return result;
+}
+
+// One edge of the window: an authored 64 px ribbon from the peak, turned to
+// pass through its foot, (run, down) in 1/64 px away. It runs on off the bottom
+// of the screen, so it's never scaled and keeps its width.
+void place_edge(Frame& frame, u32 node, i32 x, i32 y, i32 run, i32 down, u32 shade) {
+    const i32 length = i32(root(u32(run * run + down * down)));
+    place(frame, node, x, y, unit, shade, stroke);
+    const Turn edge = {run * unit / length, down * unit / length};
+    turn(frame, node, edge);
+}
+
+// shpe: the grain's window, under pos. Its feet are fixed either side of pos,
+// on the screen's bottom edge, and its peak slides between them.
+void place_window(Frame& frame, i32 px, i32 shpe, bool held) {
+    const i32 half = 24, height = 13;
+    const i32 across = i32((u32(2 * half) * 64 * window_peak(shpe)) >> 16);   // 1/64 px from the left foot
+    const i32 x = (px - half) * unit + across * (unit / 64), y = (220 - height) * unit;
+    const u32 shade = held ? mid : dim;
+    place_edge(frame, window_rise, x, y, -across, height * 64, shade);
+    place_edge(frame, window_fall, x, y, 2 * half * 64 - across, height * 64, shade);
+}
+
 // scan is the read point's offset from pos while a note is held (Q16 of the
 // sample), so the marks follow it.
-void place_marks(Frame& frame, const Input& input, const Sample& sample, u32 scan) {
+void place_marks(Frame& frame, const Input& input, const Sample& sample, u32 scan, bool held) {
     const i32 px = strip_x(sample, level(input.slots[kPos]) + scan);
     place(frame, pos_node, px * unit, strip_y * unit, unit, bright, fill_and_stroke);
     const i32 rate = scan_rate(input.slots[kScan]);
     // The arrow grows with speed: 0.6x its length near the middle to 1.4x at 2x.
     const i32 grow = unit * 6 / 10 + i32(u32(rate < 0 ? -rate : rate) * 4 / 10 * u32(unit) >> 17);
-    if (rate > 0) place(frame, scan_forward, px * unit, (strip_y - 21) * unit, grow, bright, stroke); else hide(frame, scan_forward);
-    if (rate < 0) place(frame, scan_back, px * unit, (strip_y - 21) * unit, grow, bright, stroke); else hide(frame, scan_back);
+    if (rate) {
+        place(frame, scan_arrow, px * unit, (strip_y - 21) * unit, grow, bright, stroke);
+        if (rate < 0) { const Turn back = {-unit, 0}; turn(frame, scan_arrow, back); }
+    } else {
+        hide(frame, scan_arrow);
+    }
     if (!rate) place(frame, scan_frozen, px * unit, (strip_y - 21) * unit, unit, bright, stroke); else hide(frame, scan_frozen);
     // spry: the spread grains start within, either side of pos.
     const u32 span_px = u32(width) * ((sample.end - sample.begin) >> 4) >> 12;
@@ -143,6 +180,7 @@ void place_marks(Frame& frame, const Input& input, const Sample& sample, u32 sca
         hide(frame, spray_first);
         hide(frame, spray_first + 1);
     }
+    place_window(frame, px, input.slots[kShpe], held);
 }
 
 void place_lanes(Frame& frame, u32 chord) {
@@ -215,9 +253,9 @@ void place_grains(DisplayState& state, const Input& input, Frame& frame, const S
             shade = 5;
         } else {
             if (!g.life) { hide(frame, node); continue; }
-            // Brightest at the middle of its window: a triangle, dim to bright to dim.
-            const u32 half = g.life / 2, t = g.age < half ? g.age : g.life - g.age;
-            shade = 3 + (half ? t * 11 / half : 0);
+            // Brightest at its window's peak: dim to bright to dim, as shpe shapes it.
+            const u32 peak = u32(g.life) * window_peak(input.slots[kShpe]) >> 16;
+            shade = 3 + (g.age < peak ? u32(g.age) * 11 / peak : u32(g.life - g.age) * 11 / (g.life - peak));
         }
         const u32 note = lane_notes[chord][g.note % lane_counts[chord]];
         i32 y = root_y - i32(note) * semitone_px;
@@ -307,7 +345,7 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     place(frame, cover_hint, 0, 0, unit, 0, fill_and_stroke);
     for (u32 i = 0; i < 3; ++i) place(frame, octave_first + i, 0, 0, unit, octave, stroke);
     place_strip(frame, sample, held);
-    place_marks(frame, input, sample, moving ? state.scan : 0);
+    place_marks(frame, input, sample, moving ? state.scan : 0, held);
     place_lanes(frame, chord);
     place_grains(state, input, frame, sample, moving);
 }
