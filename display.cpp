@@ -18,21 +18,32 @@ const i32 semitone_px = 4;                  // 24 semitones over 96 px
 const u32 lane = 2, octave = 4, dim = 6, mid = 9, bright = 14;
 
 // Until the sample's overview has been read: a flat strip, 2.4 s long.
-const opxy::u8 flat[64] = {};
 const u32 flat_ms = 2400;
 
-// The sample as the screen shows it: its peaks, the outer markers the engine
-// plays between as fractions of the whole (Q16), and the lengths in ms of the
-// whole sample and of the part between the markers.
-struct Sample { const opxy::u8* peaks; u32 key; u32 begin, end; u32 whole_ms, span_ms; };
+// The sample as the screen shows it: its overview, or none for the flat strip;
+// the outer markers the engine plays between as fractions of the whole (Q16);
+// and the lengths in ms of the whole sample and of the part between the markers.
+struct Sample { const opxy::draw::SampleOverview* overview; u32 key; u32 begin, end; u32 whole_ms, span_ms; };
+
+// The strip's 64 columns from the overview's 96 min/max bins: the column's
+// largest magnitude, 0..255.
+u32 peak(const opxy::draw::SampleOverview* o, u32 column) {
+    if (!o) return 0;
+    u32 most = 0;
+    for (u32 b = column * 3 / 2; b < (column + 1) * 3 / 2; ++b) {
+        const i32 low = o->low[b], high = o->high[b];
+        const u32 size = u32(high > -low ? high : -low);
+        if (size > most) most = size;
+    }
+    const u32 scaled = most >> 7;
+    return scaled > 255 ? 255 : scaled;
+}
 
 Sample read_sample(const opxy::draw::SampleOverview& o) {
-    if (!o.loaded || !o.frames || !o.rate) return Sample{flat, 1, 0, 65536, flat_ms, flat_ms};
+    if (!o.loaded || !o.frames || !o.rate) return Sample{nullptr, 1, 0, 65536, flat_ms, flat_ms};
     Sample s;
-    s.peaks = o.peaks;
-    u32 sum = 0;
-    for (u32 i = 0; i < 64; ++i) sum = sum * 31 + o.peaks[i];
-    s.key = (sum ^ o.frames) | 2;   // never the stand-in's 1
+    s.overview = &o;
+    s.key = (o.generation << 1) | 2;   // never the stand-in's 1
     // Fractions of the whole: frames < 2^20, so frames << 8 stays inside 32 bits.
     const u32 per = (o.frames + 255) >> 8;
     s.begin = o.begin < o.frames ? (o.begin << 8) / per : 0;
@@ -111,7 +122,7 @@ void place_strip(Frame& frame, const Sample& sample, bool held) {
             for (u32 i = 0; i < 32; ++i) {
                 // 32 bins out along the top, back along the bottom: a closed ribbon at scale 2.
                 const i32 x = i32(i) * 108 * unit / 31 - 54 * unit;
-                const i32 half = i32(sample.peaks[32 * h + i]) * 13 * unit / 510 + 307;
+                const i32 half = i32(peak(sample.overview, 32 * h + i)) * 13 * unit / 510 + 307;
                 path.points[i].x = x;
                 path.points[i].y = -half;
                 path.points[63 - i].x = x;
