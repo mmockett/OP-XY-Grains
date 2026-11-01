@@ -8,8 +8,8 @@ where it reads and at what pitch.
 ![Grains' screen: no sample loaded, at rest, while a note plays, and with a minor chord](docs/screen/preview.png)
 
 **Status: experimental.** Grains plays on an OP-XY running OS 1.2.1 and targets
-Open-XY SDK 1.8. Its render callback last measured 3.105% of the stock block
-budget on the device (v1.0.0, median of 3 runs of `opxy-sample-callback-v1`,
+Open-XY SDK 1.8. Its render callback measures 3.067% of the stock block
+budget on the device (v1.1.0, one capture of `opxy-sample-callback-v1`,
 graphics excluded). That measures its defaults only, so a preset or setting with
 more grains, `dens` up to 20 for example, costs more, and it isn't total device
 CPU or a worst-case sweep.
