@@ -42,7 +42,8 @@ dens's own count.
 
 ## Presets
 
-Six presets, each made to play on whatever sample is loaded:
+Six presets, each made to play on whatever sample is loaded. A preset brings no sample
+of its own, so with none on the track Grains stays silent and the screen says how to load one:
 
 | Preset | What it is | How it's set |
 | --- | --- | --- |
