@@ -414,10 +414,12 @@ void render_sample(Voice& voice, const opxy::SampleBlock& block) {
     // The voice's share of the grain budget: past it, fewer grains at once in
     // cloud and osc, and shorter ones on the same beat in sync.
     const u32 want = wanted(s, block), cap = share(voice, want);
+    // In sync dens is a division, not an overlap: a grain's level follows how many sound.
+    if (s.mode == kSync) s.gain = grain_gain(want << 8);
     if (cap < want) {
         if (s.mode == kSync) s.length = division(s, block) * cap;
         else s.overlap8 = cap << 8;
-        s.gain = grain_gain(s.overlap8);
+        s.gain = grain_gain(cap << 8);
     }
     shed(voice, cap);
 

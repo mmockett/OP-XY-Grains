@@ -3,5 +3,12 @@
   "sdk": "1.8",
   "kind": "sample",
   "description": "A granular sample synth: grains read around a scanning position, stacked into chords.",
-  "base": "sampler"
+  "base": "sampler",
+  "presets": "presets",
+  "presetDefaults": {
+    "amp": {
+      "attack": 128,
+      "release": 9000
+    }
+  }
 }

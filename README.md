@@ -7,12 +7,12 @@ where it reads and at what pitch.
 
 ![Grains' screen: no sample loaded, at rest, while a note plays, and with a minor chord](docs/screen/preview.png)
 
-**Status: experimental.** Grains plays on an OP-XY running OS 1.2.1, but it
-needs SDK features that aren't in Open-XY yet (below), so it isn't in the
-open-xy.com catalog. Its render callback measures 3.105% of the
-stock block budget on the device (v1.0.0, median of 3 runs of
-`opxy-sample-callback-v1`, graphics excluded); that isn't total device CPU, or
-a worst-case settings sweep.
+**Status: experimental.** Grains plays on an OP-XY running OS 1.2.1 and targets
+Open-XY SDK 1.8. Its render callback last measured 3.105% of the stock block
+budget on the device (v1.0.0, median of 3 runs of `opxy-sample-callback-v1`,
+graphics excluded). That measures its defaults only, so a preset or setting with
+more grains, `dens` up to 20 for example, costs more, and it isn't total device
+CPU or a worst-case sweep.
 
 ## Playing it
 
@@ -40,26 +40,29 @@ out over about 6 ms. Each grain's level is set as it starts, so fewer grains
 play louder without the ones already sounding jumping. The screen still shows
 dens's own count.
 
+## Presets
+
+Six presets, each made to play on whatever sample is loaded:
+
+| Preset | What it is | How it's set |
+| --- | --- | --- |
+| **still** | a frozen cloud, a sound held in place | cloud, no scan, grains of 420 ms, detuned |
+| **drift** | a pad that wanders slowly through the sample | cloud, slow scan, long grains, octaves |
+| **choir** | each note a major chord | cloud, grains of 240 ms, stacked and spread |
+| **stutter** | sixteenths on the tempo | sync, short plucked grains |
+| **reed** | a pitched, steady tone from one spot | osc, grains of 28 ms, octaves |
+| **undertow** | the sample backwards, swelling | rcloud, slow backward scan, fifths |
+
+Where the sample's own character sits matters most, so try `pos` first.
+
 ## The SDK it needs
 
 Grains is a sample engine on the stock sample page (page 2) that plays like the
-sampler and draws its own screen. Three changes to the
-[Open-XY SDK](https://github.com/etcetc000/open-xy) make that possible:
-
-1. sample engines on the sampler page, playing one sample chromatically
-   ([#180](https://github.com/etcetc000/open-xy/pull/180));
-2. sample engines with their own screen, the encoders on their own controls
-   ([#181](https://github.com/etcetc000/open-xy/pull/181));
-3. the sample's overview for that screen
-   ([#182](https://github.com/etcetc000/open-xy/pull/182)).
-
-They're open as pull requests to `etcetc000/open-xy`. Until they merge,
-build Grains with [mmockett/open-xy](https://github.com/mmockett/open-xy) on
-`sdk/sample-overview`, the branch that holds all three, checked out beside this
-repository as `../open-xy`:
+sampler and draws its own screen, using [Open-XY](https://github.com/etcetc000/open-xy)
+SDK 1.8's sample engines with their own screen and the sample's overview:
 
 ```sh
-git clone -b sdk/sample-overview https://github.com/mmockett/open-xy ../open-xy
+git clone -b staging https://github.com/etcetc000/open-xy ../open-xy
 python ../open-xy/sdk.py test --machine . --cxx clang++ --host-cxx g++
 python ../open-xy/sdk.py build --machine . --stock-os <your stock-1.2.1>/os.ldr --out <folder outside this checkout>
 ```
@@ -67,7 +70,7 @@ python ../open-xy/sdk.py build --machine . --stock-os <your stock-1.2.1>/os.ldr 
 Then install the build's `candidate/` files as the SDK's
 [build guide](https://github.com/etcetc000/open-xy/blob/staging/docs/build.md#5-install)
 describes. Command-line builds carry no presets; the OP-XY lists Grains once
-`content/presets/grains/` holds one.
+`content/presets/grains/` holds one, and this repository's are in `presets/`.
 
 ## Develop
 

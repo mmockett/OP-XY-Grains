@@ -150,6 +150,17 @@ int main() {
         r.parameters[grains::kDens] = at(1);
         check(grains::interval(r.voice, grains::decode(r.voice, r.block), r.block) == 2756, "sync's shortest is a 1/32 note");
     }
+    {   // sync's level doesn't fall with its division: a 1/16 of short grains peaks as a half note's.
+        i32 peaks[2];
+        for (u32 k = 0; k < 2; ++k) {
+            Rig r(level16, frames);
+            r.parameters[grains::kMode] = choice(1, grains::mode_count);
+            r.parameters[grains::kDens] = at(k ? 15.0 / 19 : 0);
+            r.parameters[grains::kSize] = at(0.35);
+            peaks[k] = r.run(1500);
+        }
+        check(peaks[1] > peaks[0] * 0.8 && peaks[1] < peaks[0] * 1.25, "sync's level holds across divisions");
+    }
     {   // osc: grains evenly spaced, size over the overlap.
         Rig r(sine, frames);
         r.parameters[grains::kMode] = choice(2, grains::mode_count);
@@ -330,6 +341,20 @@ int main() {
             check(run(8, 1500, 6, 0) <= grains::grain_budget, "every mode keeps to the budget");
         }
         for (u32 v = 0; v < 8; ++v) delete rigs[v];
+    }
+    // Every preset (presets/*.json) sounds and stays within the declared peak, on a loud sample.
+    {
+        const char* names[6] = {"still", "drift", "choir", "stutter", "reed", "undertow"};
+        const double values[6][8] = {{0.380000, 0.500000, 0.705445, 0.578947, 0.180000, 0.214286, 0.500000, 0.083333}, {0.050000, 0.550000, 0.787870, 0.473684, 0.280000, 0.357143, 0.380000, 0.083333}, {0.300000, 0.515000, 0.599823, 0.684211, 0.240000, 0.642857, 0.500000, 0.083333}, {0.120000, 0.530000, 0.468999, 0.789474, 0.040000, 0.071429, 0.700000, 0.250000}, {0.340000, 0.500000, 0.194330, 0.263158, 0.000000, 0.357143, 0.500000, 0.416667}, {0.700000, 0.460000, 0.827060, 0.368421, 0.300000, 0.500000, 0.140000, 0.583333}};
+        for (u32 n = 0; n < 6; ++n) {
+            for (u32 k = 0; k < 2; ++k) {
+                Rig* rig = new Rig(k ? square : sine, frames);
+                for (u32 i = 0; i < 8; ++i) rig->parameters[i] = at(values[n][i]);
+                const i32 peak = rig->run(1500);
+                if (peak <= 0 || peak > 1073741824) { std::printf("FAIL preset %s, peak %d\n", names[n], peak); ++failures; }
+                delete rig;
+            }
+        }
     }
     if (!failures) std::puts("PASS grains: silence, levels, freeze, scan, chords, pitch, sync, osc, shape, size, spry, reverse, window, budget");
     return failures ? 1 : 0;
