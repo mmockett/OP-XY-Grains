@@ -35,14 +35,14 @@ pos, scan and spry choose where its grains read within them.
 Press any encoder to switch pages. The OP-XY's own envelopes, LFOs, filter and
 effects apply as for any instrument.
 
-Holding Shift, three encoders move the stock sampler's markers instead, on
-either page, and the screen shows them:
+Holding Shift, the encoders edit the stock sampler's markers and gain
+instead, on either page, and the screen shows them:
 
 | Shift + | Edits | On the screen |
 | --- | --- | --- |
 | encoder 1 | **start**: where grains may begin reading | the start marker on the strip; its time in the sample |
 | encoder 2 | **window**: start and end together, keeping the length between them | both markers slide; the length |
-| encoder 3 | a fine turn of size (page 1) or shpe (page 2) | as without Shift |
+| encoder 3 | **gain**: the sample's gain, in stock's steps from -30 to +20 | the strip's waveform grows and shrinks, twice as tall each 10 steps up; `+0`, `-12`, `+20` (blank while no gain is known) |
 | encoder 4 | **end**: where grains stop reading | the end marker; its time in the sample |
 
 Trim to the stretch that matters and pos, scan and spry range over it alone:
@@ -82,8 +82,10 @@ Where the sample's own character sits matters most, so try `pos` first.
 Grains is a sample engine on the stock sample page (page 2) that plays like the
 sampler and draws its own screen, using [Open-XY](https://github.com/etcetc000/open-xy)
 SDK 1.8's sample engines with their own screen and the sample's overview, and
-SDK 1.10's `stockShift`, which hands Shift and encoders 1, 2 and 4 back to the
-stock sampler's markers:
+SDK 1.10's `stockShift`, which hands Shift and the encoders back to the stock
+sampler's markers and gain. Showing the gain needs the sample overview's
+`gain`, from [etcetc000/open-xy#400](https://github.com/etcetc000/open-xy/pull/400),
+as well as `stockShift`:
 
 ```sh
 git clone -b staging https://github.com/etcetc000/open-xy ../open-xy
@@ -103,7 +105,9 @@ describes. Command-line builds carry no presets; the OP-XY lists Grains once
 - `display.cpp`: the screen ([docs/SCREEN.md](docs/SCREEN.md)), its artwork in
   `panel.svg.fragment` (`tools/make_panel.py` writes it).
 - `tests/sound.cpp`: the engine's sound tests, and `tests/screen.cpp`, Shift's
-  markers and captions; `sdk.py test` runs both.
+  markers and captions, the gain's every step and its width, a blank cell for
+  an unknown gain, and the waveform growing with the gain; `sdk.py test` runs
+  both.
 
 Sample engines have no browser preview of their own. `docs/screen/preview.png`
 was rendered by running `display.cpp` through a stand-in synth with the same

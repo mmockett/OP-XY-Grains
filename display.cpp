@@ -23,7 +23,8 @@ const u32 flat_ms = 2400;
 // The sample as the screen shows it: its overview, or none for the flat strip;
 // the outer markers the engine plays between as fractions of the whole (Q16);
 // and the lengths in ms of the whole sample and of the part between the markers.
-struct Sample { const opxy::draw::SampleOverview* overview; u32 key; u32 begin, end; u32 whole_ms, span_ms; };
+// and its gain in stock's steps (-30..+20, #400; 0 when unknown).
+struct Sample { const opxy::draw::SampleOverview* overview; u32 key; u32 begin, end; u32 whole_ms, span_ms; i32 gain; };
 
 // The strip's 64 columns from the overview's 96 min/max bins: the column's
 // largest magnitude, 0..255.
@@ -52,10 +53,11 @@ u32 share(u32 part, u32 whole) {
 }
 
 Sample read_sample(const opxy::draw::SampleOverview& o) {
-    if (!o.loaded || !o.frames || !o.rate) return Sample{nullptr, 1, 0, 65536, flat_ms, flat_ms};
+    if (!o.loaded || !o.frames || !o.rate) return Sample{nullptr, 1, 0, 65536, flat_ms, flat_ms, 0};
     Sample s;
     s.overview = &o;
-    s.key = (o.generation << 1) | 2;   // never the stand-in's 1
+    s.gain = o.gain == opxy::draw::gain_unavailable ? 0 : o.gain < -30 ? -30 : o.gain > 20 ? 20 : o.gain;
+    s.key = (o.generation << 8) | (u32(s.gain + 30) << 2) | 2;   // a new sample or gain; never the stand-in's 1
     // Fractions of the whole, exact at either end however long the sample.
     s.begin = o.begin < o.frames ? share(o.begin, o.frames) : 0;
     s.end = o.end && o.end <= o.frames ? share(o.end, o.frames) : 65536;
@@ -127,8 +129,8 @@ void signed_tenths(char* out, i32 value) {
 
 // Shift (resources.stockShift): encoders 1, 2 and 4 turn the stock sampler's
 // start, both markers together (the window, keeping its length) and end;
-// encoder 3 keeps its own fine turn.
-const char* const shift_titles[4] = {"start", "window", nullptr, "end"};
+// encoder 3 its gain.
+const char* const shift_titles[4] = {"start", "window", "gain", "end"};
 
 // Frames as seconds, within the 53 px a value has: 0.62s, 12.4s, 123s, and
 // from 1000 s whole minutes, 17m.
@@ -144,7 +146,8 @@ void seconds(char* out, u32 frames, u32 rate) {
 
 // While Shift is held, the row the encoders turn names what Shift edits there,
 // as the stock header does: the sampler's start and end, at their times in the
-// sample, and the window, at its length. The third keeps its own control.
+// sample, the window, at its length, and the gain in stock's steps, +0, -12 or
+// +20 (with no gain known, gain_unavailable, its cell is blank).
 void shift_row(const Input& input, const opxy::u8 (&pages)[2][4], const opxy::draw::SampleOverview& o,
                const char* (&titles)[8], char (&values)[8][header_capacity]) {
     if (!input.shift) return;
@@ -158,7 +161,12 @@ void shift_row(const Input& input, const opxy::u8 (&pages)[2][4], const opxy::dr
         if (!shift_titles[col]) continue;
         const u32 slot = pages[page][col];
         titles[slot] = shift_titles[col];
-        if (known) seconds(values[slot], marks[col], o.rate);
+        if (col == 2) {
+            values[slot][0] = '\0';
+            if (o.gain == opxy::draw::gain_unavailable) { titles[slot] = ""; continue; }
+            values[slot][0] = o.gain < 0 ? '-' : '+';
+            put(values[slot] + 1, u32(o.gain < 0 ? -o.gain : o.gain));
+        } else if (known) seconds(values[slot], marks[col], o.rate);
         else copy(values[slot], header_capacity, "-");
     }
 }
@@ -175,14 +183,18 @@ void place_trim(Frame& frame, const Sample& sample, bool shift) {
               shift ? bright : mid, fill_and_stroke);
 }
 
+// The strip: the whole sample's waveform, its height scaled by the gain, twice
+// as tall each 10 of stock's steps up, within the strip's room.
 void place_strip(Frame& frame, const Sample& sample, bool held) {
+    const i32 g = sample.gain + 30, louder = (128 << (g / 10)) * (10 + g % 10) / 10;   // Q10: 128 at -30 .. 4096 at +20
     for (u32 h = 0; h < 2; ++h) {
         Frame::path_type& path = frame.paths[h];
         if (path.key != sample.key) {
             for (u32 i = 0; i < 32; ++i) {
                 // 32 bins out along the top, back along the bottom: a closed ribbon at scale 2.
                 const i32 x = i32(i) * 108 * unit / 31 - 54 * unit;
-                const i32 half = i32(peak(sample.overview, 32 * h + i)) * 13 * unit / 510 + 307;
+                const i32 tall = (i32(peak(sample.overview, 32 * h + i)) * 13 * unit / 510 * louder) >> 10;
+                const i32 half = (tall < 10 * unit ? tall : 10 * unit) + 307;   // at most 20 px a side as drawn
                 path.points[i].x = x;
                 path.points[i].y = -half;
                 path.points[63 - i].x = x;

@@ -112,7 +112,7 @@
     "stockShift": [
       "start",
       "window",
-      "",
+      "gain",
       "end"
     ],
     "display": {

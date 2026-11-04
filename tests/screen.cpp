@@ -4,6 +4,7 @@
 // that every caption Shift's row can show fits its column on the device.
 #include "../display.cpp"
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 
@@ -23,8 +24,8 @@ i32 at(double value) { return i32(value * 2147483647.0); }
 // value at 20 px must fit 53 px, a title at 10 px 56 px.
 struct Advance { char c; int width; };
 const Advance advances[] = {
-    {'-', 329}, {'.', 280}, {'0', 560}, {'1', 560}, {'2', 560}, {'3', 560}, {'4', 560}, {'5', 560}, {'6', 560},
-    {'7', 560}, {'8', 560}, {'9', 560}, {'a', 536}, {'d', 581}, {'e', 532}, {'i', 235}, {'m', 894}, {'n', 574},
+    {'+', 676}, {'-', 329}, {'.', 280}, {'0', 560}, {'1', 560}, {'2', 560}, {'3', 560}, {'4', 560}, {'5', 560}, {'6', 560},
+    {'7', 560}, {'8', 560}, {'9', 560}, {'a', 536}, {'d', 581}, {'e', 532}, {'g', 589}, {'i', 235}, {'m', 894}, {'n', 574},
     {'o', 571}, {'r', 345}, {'s', 480}, {'t', 325}, {'w', 820}};
 double caption_width(const char* text, int px) {
     int total = 0;
@@ -77,10 +78,10 @@ int main() {
         s.run();
         check(s.shown(grains::trim_first) && s.x(grains::trim_first) == 24, "Shift shows the start marker at the strip's left");
         check(s.shown(grains::trim_first + 1) && s.x(grains::trim_first + 1) == 456, "Shift shows the end marker at its right");
-        check(!std::strcmp(s.text(0), "start") && !std::strcmp(s.text(1), "window") && !std::strcmp(s.text(2), "size") &&
-              !std::strcmp(s.text(3), "end"), "Shift's row names start, window, size (its own fine turn) and end");
-        check(!std::strcmp(s.text(4), "0.00s") && !std::strcmp(s.text(5), "4.00s") && !std::strcmp(s.text(7), "4.00s"),
-              "Shift's row gives the start's and end's times and the window's length");
+        check(!std::strcmp(s.text(0), "start") && !std::strcmp(s.text(1), "window") && !std::strcmp(s.text(2), "gain") &&
+              !std::strcmp(s.text(3), "end"), "Shift's row names start, window, gain and end");
+        check(!std::strcmp(s.text(4), "0.00s") && !std::strcmp(s.text(5), "4.00s") && !std::strcmp(s.text(6), "+0") &&
+              !std::strcmp(s.text(7), "4.00s"), "Shift's row gives the start's and end's times, the window's length and the gain");
         check(!std::strcmp(s.frame.header[0], "0.00s") && !std::strcmp(s.frame.header[3], "4.00s"), "the stock header gets them too");
     }
     {   // Trimmed to 1 s .. 3 s: the markers stay, a step dimmer, and pos at 0 reads from the start marker.
@@ -91,15 +92,50 @@ int main() {
         check(s.shown(grains::trim_first + 1) && std::abs(s.x(grains::trim_first + 1) - 348) <= 1, "the end marker at 3 s of 4");
         check(s.frame.nodes[grains::trim_first].shade < 14, "the markers are dimmer without Shift");
         check(std::abs(s.x(grains::pos_node) - s.x(grains::trim_first)) <= 1, "pos at 0 sits on the start marker");
-        // On the second page Shift's row is that page's, its third still its own.
+        // On the second page Shift's row is that page's, its third the gain.
         for (u32 i = 0; i < 4; ++i) s.input.shown[i] = opxy::u8(4 + i);
         s.input.shift = 1;
         s.run();
-        check(!std::strcmp(s.text(0), "start") && !std::strcmp(s.text(2), "shpe") && !std::strcmp(s.text(3), "end"),
-              "page 2's Shift row names start, window, shpe and end");
+        check(!std::strcmp(s.text(0), "start") && !std::strcmp(s.text(2), "gain") && !std::strcmp(s.text(3), "end"),
+              "page 2's Shift row names start, window, gain and end");
         check(!std::strcmp(s.text(4), "1.00s") && !std::strcmp(s.text(5), "2.00s") && !std::strcmp(s.text(7), "3.00s"),
               "page 2's Shift row gives 1.00s, 2.00s and 3.00s");
         check(s.frame.nodes[grains::trim_first].shade == 14, "Shift brightens the markers");
+    }
+    {   // The gain (SampleOverview.gain, #400) in stock's steps, every one within
+        // the caption's width, and the strip's waveform taller as it rises.
+        double last = 0, last_ten = 0;
+        for (i32 g = -30; g <= 20; ++g) {
+            overview.gain = g;
+            Screen s;
+            s.input.shift = 1;
+            s.run(2);
+            char want[8];
+            std::snprintf(want, sizeof want, "%c%d", g < 0 ? '-' : '+', g < 0 ? -g : g);
+            check(!std::strcmp(s.text(6), want), "the gain reads in stock's signed steps");
+            const double w = caption_width(s.text(6), 20);
+            check(w >= 0 && w <= 53, "the gain's caption fits 53 px");
+            double tallest = 0;
+            for (u32 h = 0; h < 2; ++h)
+                for (const opxy::draw::Point& q : s.frame.paths[h].points) tallest = std::fmax(tallest, std::fabs(q.y / 1024.0));
+            if (g % 10 == 0 && g <= 0) { check(tallest > last_ten + 0.2, "the waveform grows with the gain"); last_ten = tallest; }
+            check(tallest >= last && tallest * 2 <= 21, "the waveform never shrinks as the gain rises, and stays within 21 px a side");
+            last = tallest;
+        }
+        // No gain known (gain_unavailable): its cell shows nothing, and the waveform is as at +0.
+        overview.gain = opxy::draw::gain_unavailable;
+        Screen u;
+        u.input.shift = 1;
+        u.run(2);
+        check(!u.text(2)[0] && !u.text(6)[0] && !u.frame.header[2][0], "an unknown gain shows nothing");
+        overview.gain = 0;
+        Screen z;
+        z.input.shift = 1;
+        z.run(2);
+        bool same = true;
+        for (u32 h = 0; h < 2; ++h)
+            for (u32 i = 0; i < 64; ++i) same = same && u.frame.paths[h].points[i].y == z.frame.paths[h].points[i].y;
+        check(same, "an unknown gain leaves the waveform as at +0");
     }
     {   // No sample: Shift's row shows no times, and nothing is drawn on the stage.
         overview.assigned = overview.loaded = 0;
@@ -124,7 +160,7 @@ int main() {
                     s.run(1);
                     for (u32 slot = 4; slot < 8; ++slot) {
                         const double w = caption_width(s.text(slot), 20);
-                        if (slot != 6 && (w < 0 || w > 53)) {
+                        if (slot != 6 && (w < 0 || w > 53)) {   // the gain: measured above
                             std::printf("FAIL the caption '%s' is %.1f px at 20 px, over 53\n", s.text(slot), w);
                             ++failures;
                         }

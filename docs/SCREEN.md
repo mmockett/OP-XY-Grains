@@ -50,9 +50,11 @@ straight above the stretch of sample it reads.
   they trim the sample; hidden on an untrimmed sample. pos, its scan and spry
   range between them.
 - **Shift's row**: while Shift is held, the header's bright row reads
-  **start**, **window** and **end** over encoders 1, 2 and 4, with the start's
-  and end's times in the sample and the window's length (`0.62s`, `12.4s`,
-  `123s`, `17m`); encoder 3 keeps its own control, which Shift turns finely.
+  **start**, **window**, **gain** and **end**, with the start's and end's
+  times in the sample, the window's length (`0.62s`, `12.4s`, `123s`, `17m`)
+  and the sample's gain in stock's steps (`+0`, `-12`, `+20`; a blank cell
+  while no gain is known). The gain also scales the strip's waveform, twice as
+  tall each 10 steps up, at most 20 px a side.
 
 ## Motion
 
