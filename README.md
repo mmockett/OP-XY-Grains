@@ -8,7 +8,7 @@ where it reads and at what pitch.
 ![Grains' screen: no sample loaded, at rest, while a note plays, and with a minor chord](docs/screen/preview.png)
 
 **Status: experimental.** Grains plays on an OP-XY running OS 1.2.1 and targets
-Open-XY SDK 1.8. Its render callback measures 3.067% of the stock block
+Open-XY SDK 1.10. Its render callback measures 3.067% of the stock block
 budget on the device (v1.1.0, one capture of `opxy-sample-callback-v1`,
 graphics excluded). That measures its defaults only, so a preset or setting with
 more grains, `dens` up to 20 for example, costs more, and it isn't total device
@@ -21,8 +21,9 @@ which installs `v1.1.0`, the version the Open-XY catalog pins.
 
 Choose **Grains** on an instrument track, then load a sample (Shift + the
 Sample key). One sample plays across the keyboard, as on the stock sampler:
-the sample's root key plays it as recorded. Grains reads the whole sample:
-pos, scan and spry choose where its grains read, so it needs no trim.
+the sample's root key plays it as recorded. Grains reads between the
+sampler's start and end markers, the whole sample when it is newly loaded:
+pos, scan and spry choose where its grains read within them.
 
 | Page 1 | | Page 2 | |
 | --- | --- | --- | --- |
@@ -31,8 +32,25 @@ pos, scan and spry choose where its grains read, so it needs no trim.
 | **size** | each grain's length, 10 ms to 2 s | **shpe** | each grain's window, from a swell through smooth to a pluck; the screen draws it under pos |
 | **dens** | how many grains overlap, 1 to 20 (in sync mode, the division) | **mode** | cloud (random), sync (on the tempo's divisions) or osc (evenly overlapped); rcld, rsync and rosc play every grain backwards |
 
-Press any encoder to switch pages; Shift + turn makes fine steps. The OP-XY's
-own envelopes, LFOs, filter and effects apply as for any instrument.
+Press any encoder to switch pages. The OP-XY's own envelopes, LFOs, filter and
+effects apply as for any instrument.
+
+Holding Shift, three encoders move the stock sampler's markers instead, on
+either page, and the screen shows them:
+
+| Shift + | Edits | On the screen |
+| --- | --- | --- |
+| encoder 1 | **start**: where grains may begin reading | the start marker on the strip; its time in the sample |
+| encoder 2 | **window**: start and end together, keeping the length between them | both markers slide; the length |
+| encoder 3 | a fine turn of size (page 1) or shpe (page 2) | as without Shift |
+| encoder 4 | **end**: where grains stop reading | the end marker; its time in the sample |
+
+Trim to the stretch that matters and pos, scan and spry range over it alone:
+pos at 0 sits on the start marker, and a scan wraps from end back to start.
+The markers stay on the strip, a step dimmer, while they trim the sample. The
+track saves them, as the sampler does, so a sample trimmed on the stock
+sampler plays the same stretch in Grains. Gain and tuning set on the stock
+sampler still apply.
 
 Every note of Grains, on every track, shares 64 grains at once, to keep its
 processing in bounds. Notes take what dens asks for while there's room: three
@@ -63,7 +81,9 @@ Where the sample's own character sits matters most, so try `pos` first.
 
 Grains is a sample engine on the stock sample page (page 2) that plays like the
 sampler and draws its own screen, using [Open-XY](https://github.com/etcetc000/open-xy)
-SDK 1.8's sample engines with their own screen and the sample's overview:
+SDK 1.8's sample engines with their own screen and the sample's overview, and
+SDK 1.10's `stockShift`, which hands Shift and encoders 1, 2 and 4 back to the
+stock sampler's markers:
 
 ```sh
 git clone -b staging https://github.com/etcetc000/open-xy ../open-xy
@@ -82,7 +102,8 @@ describes. Command-line builds carry no presets; the OP-XY lists Grains once
   (`tools/gen_tables.py` writes them).
 - `display.cpp`: the screen ([docs/SCREEN.md](docs/SCREEN.md)), its artwork in
   `panel.svg.fragment` (`tools/make_panel.py` writes it).
-- `tests/sound.cpp`: the engine's sound tests, which `sdk.py test` runs.
+- `tests/sound.cpp`: the engine's sound tests, and `tests/screen.cpp`, Shift's
+  markers and captions; `sdk.py test` runs both.
 
 Sample engines have no browser preview of their own. `docs/screen/preview.png`
 was rendered by running `display.cpp` through a stand-in synth with the same

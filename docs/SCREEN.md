@@ -5,10 +5,8 @@ Grains shows its grains as a cloud: each grain where in the sample it reads
 marked. [screen/cloud.png](screen/cloud.png) shows four states at 2×;
 [screen/cloud.html](screen/cloud.html) draws them.
 
-**Not on the device yet.** A sample machine has no screen of its own today: it
-shows the stock sample page. Drawing this needs the SDK to give a sample machine
-its own page (or to draw over page 2), and to pass the screen a short overview
-of the loaded sample. See the SDK scope for a chromatic sample synth.
+It covers the stock sampler's page (SDK 1.8's own screen) and draws the sample
+from its overview.
 
 It follows the SDK's [machine UX](https://github.com/etcetc000/open-xy/blob/staging/docs/ux.md)
 and [display API](https://github.com/etcetc000/open-xy/blob/staging/docs/display.md).
@@ -46,6 +44,15 @@ straight above the stretch of sample it reads.
   peak down to feet 48 px apart on the screen's bottom edge. The peak slides
   from the right (0, a swell) to the left (100, a pluck), where the engine
   puts it.
+- **Start and end** (Shift + encoders 1, 2 and 4, the stock sampler's
+  markers): a bar each on the strip, a flag at its top pointing into the part
+  grains read. Shown bright while Shift is held, and a step dimmer whenever
+  they trim the sample; hidden on an untrimmed sample. pos, its scan and spry
+  range between them.
+- **Shift's row**: while Shift is held, the header's bright row reads
+  **start**, **window** and **end** over encoders 1, 2 and 4, with the start's
+  and end's times in the sample and the window's length (`0.62s`, `12.4s`,
+  `123s`, `17m`); encoder 3 keeps its own control, which Shift turns finely.
 
 ## Motion
 
@@ -73,6 +80,7 @@ slots):
 | shpe | 2 nodes (the window's edges, sharing the peak as their pivot) |
 | Lanes | 7 nodes (3 octaves, up to 4 chord notes) and 3 static labels |
 | Grains | 24 nodes, the most grains shown at once; dashes in 3 authored lengths for short, medium and long sizes, scaled within each (a node scales uniformly, at most 2×) |
+| Start and end | 2 nodes |
 
-50 nodes and 2 paths, leaving room for later parts. Lane labels are static
+52 nodes and 2 paths, leaving room for later parts. Lane labels are static
 `<text>` in the device font; the header takes every text slot.

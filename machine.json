@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "sdk": "1.8",
+  "sdk": "1.10",
   "kind": "sample",
   "description": "A granular sample synth: grains read around a scanning position, stacked into chords.",
   "base": "sampler",

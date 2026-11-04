@@ -136,6 +136,28 @@ int main() {
         grains::spawn(r.voice, grains::decode(r.voice, r.block));
         check(std::fabs(r.voice.grains[0].step - semitone / 2) < semitone * 0.002, "a sample's own rate sets its speed");
     }
+    {   // Shift's start, window and end (stockShift) trim what grains read: every
+        // grain starts, and reads, within the trim, wherever pos, scan and spry send it.
+        static opxy::i16 halves[frames];
+        for (u32 i = 0; i < frames; ++i) halves[i] = i < frames / 2 ? 0 : soft[i];
+        Rig silent(halves, frames), loud(halves, frames);
+        silent.block.region.end = frames / 2;    // the silent half
+        loud.block.region.begin = frames / 2;
+        silent.parameters[grains::kSpry] = loud.parameters[grains::kSpry] = at(1);
+        silent.parameters[grains::kScan] = loud.parameters[grains::kScan] = at(1);
+        check(silent.run(400) == 0, "trimmed to the silent half, grains stay silent");
+        check(loud.run(400) > 0x01000000, "trimmed to the loud half, grains sound");
+        Rig r(sine, frames);
+        r.block.region.begin = 10000;
+        r.block.region.end = 12000;
+        r.parameters[grains::kSpry] = at(1);
+        for (u32 n = 0; n < 200; ++n) {
+            r.run(1);
+            for (u32 k = 0; k < grains::grain_count; ++k)
+                if (r.voice.grains[k].active)
+                    check(r.voice.grains[k].frame >= 10000 && r.voice.grains[k].frame < 12000, "a grain reads within the trim");
+        }
+    }
     {   // The sample's volume: half its level halves the output.
         Rig loud(soft, frames), quiet(soft, frames);
         quiet.block.region.level = opxy::sample_unity_level / 2;

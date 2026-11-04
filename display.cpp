@@ -39,16 +39,26 @@ u32 peak(const opxy::draw::SampleOverview* o, u32 column) {
     return scaled > 255 ? 255 : scaled;
 }
 
+// part / whole in Q16, by long division, for any sample length: 65536 at the end.
+u32 share(u32 part, u32 whole) {
+    if (!whole || part >= whole) return whole ? 65536 : 0;
+    u32 rest = part, q = 0;   // rest < whole < 2^31, so rest << 1 stays in 32 bits
+    for (u32 bit = 0; bit < 16; ++bit) {
+        rest <<= 1;
+        q <<= 1;
+        if (rest >= whole) { rest -= whole; q |= 1; }
+    }
+    return q;
+}
+
 Sample read_sample(const opxy::draw::SampleOverview& o) {
     if (!o.loaded || !o.frames || !o.rate) return Sample{nullptr, 1, 0, 65536, flat_ms, flat_ms};
     Sample s;
     s.overview = &o;
     s.key = (o.generation << 1) | 2;   // never the stand-in's 1
-    // Fractions of the whole: frames < 2^20, so frames << 8 stays inside 32 bits.
-    const u32 per = (o.frames + 255) >> 8;
-    s.begin = o.begin < o.frames ? (o.begin << 8) / per : 0;
-    s.end = o.end && o.end <= o.frames ? (o.end << 8) / per : 65536;
-    if (s.end > 65536) s.end = 65536;
+    // Fractions of the whole, exact at either end however long the sample.
+    s.begin = o.begin < o.frames ? share(o.begin, o.frames) : 0;
+    s.end = o.end && o.end <= o.frames ? share(o.end, o.frames) : 65536;
     if (s.end <= s.begin) { s.begin = 0; s.end = 65536; }
     s.whole_ms = o.frames / (o.rate / 1000 ? o.rate / 1000 : 1);
     s.span_ms = s.whole_ms * ((s.end - s.begin) >> 6) >> 10;
@@ -113,6 +123,56 @@ void signed_tenths(char* out, i32 value) {
     if (!value) { copy(out, header_capacity, "0"); return; }
     *out = value < 0 ? '-' : '+';
     tenths(out + 1, u32(value < 0 ? -value : value));
+}
+
+// Shift (resources.stockShift): encoders 1, 2 and 4 turn the stock sampler's
+// start, both markers together (the window, keeping its length) and end;
+// encoder 3 keeps its own fine turn.
+const char* const shift_titles[4] = {"start", "window", nullptr, "end"};
+
+// Frames as seconds, within the 53 px a value has: 0.62s, 12.4s, 123s, and
+// from 1000 s whole minutes, 17m.
+void seconds(char* out, u32 frames, u32 rate) {
+    const u32 per = rate / 100 ? rate / 100 : 1, hundredths = frames / per;
+    if (hundredths < 1000) { out = put(out, hundredths / 100); *out++ = '.'; out = put(out, hundredths / 10 % 10); out = put(out, hundredths % 10); }
+    else if (hundredths < 10000) { out = put(out, hundredths / 100); *out++ = '.'; out = put(out, hundredths / 10 % 10); }
+    else if (hundredths < 100000) out = put(out, hundredths / 100);
+    else { out = put(out, hundredths / 6000); *out++ = 'm'; *out = '\0'; return; }
+    *out++ = 's';
+    *out = '\0';
+}
+
+// While Shift is held, the row the encoders turn names what Shift edits there,
+// as the stock header does: the sampler's start and end, at their times in the
+// sample, and the window, at its length. The third keeps its own control.
+void shift_row(const Input& input, const opxy::u8 (&pages)[2][4], const opxy::draw::SampleOverview& o,
+               const char* (&titles)[8], char (&values)[8][header_capacity]) {
+    if (!input.shift) return;
+    u32 page = 0;   // as page_header finds it
+    for (u32 col = 0; col < 4; ++col)
+        if (pages[1][col] != pages[0][col] && input.shown[col] == pages[1][col]) page = 1;
+    const bool known = o.loaded && o.frames && o.rate;
+    const u32 end = known && o.end && o.end <= o.frames ? o.end : o.frames, begin = o.begin < end ? o.begin : 0;
+    const u32 marks[4] = {begin, end - begin, 0, end};
+    for (u32 col = 0; col < 4; ++col) {
+        if (!shift_titles[col]) continue;
+        const u32 slot = pages[page][col];
+        titles[slot] = shift_titles[col];
+        if (known) seconds(values[slot], marks[col], o.rate);
+        else copy(values[slot], header_capacity, "-");
+    }
+}
+
+// The stock sampler's start and end markers on the strip: shown while Shift
+// edits them, and whenever they trim the sample, so pos's span reads.
+void place_trim(Frame& frame, const Sample& sample, bool shift) {
+    const opxy::draw::SampleOverview* o = sample.overview;
+    const bool trimmed = o && ((o->begin && o->begin < o->frames) || (o->end && o->end < o->frames));
+    if (!shift && !trimmed) { hide(frame, trim_first); hide(frame, trim_first + 1); return; }
+    const u32 marks[2] = {sample.begin, sample.end};
+    for (u32 i = 0; i < 2; ++i)
+        place(frame, trim_first + i, (left * unit) + i32((u32(width) * unit * (marks[i] >> 4)) >> 12), strip_y * unit, unit,
+              shift ? bright : mid, fill_and_stroke);
 }
 
 void place_strip(Frame& frame, const Sample& sample, bool held) {
@@ -293,7 +353,7 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     const opxy::draw::SampleOverview& overview = *opxy_sample_overview();
     const Sample sample = read_sample(overview);
     // Header: titles and real-unit captions for the two pages.
-    const char* const titles[8] = {"pos", "scan", "size", "dens", "spry", "chrd", "shpe", "mode"};
+    const char* own[8] = {"pos", "scan", "size", "dens", "spry", "chrd", "shpe", "mode"};
     char values[8][header_capacity] = {};
     const u32 mode = choice(input.slots[kMode], mode_count), chord = choice(input.slots[kChrd], 7);
     header_amount(values[kPos], header_capacity, input.slots[kPos]);
@@ -309,6 +369,8 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     header_amount(values[kShpe], header_capacity, input.slots[kShpe]);
     copy(values[kMode], header_capacity, mode_names[mode]);
     const opxy::u8 pages[2][4] = {{kPos, kScan, kSize, kDens}, {kSpry, kChrd, kShpe, kMode}};
+    shift_row(input, pages, overview, own, values);
+    const char* const titles[8] = {own[0], own[1], own[2], own[3], own[4], own[5], own[6], own[7]};
     page_header(state.header, input, frame, titles, values, header_first, pages);
 
     // A track change starts afresh; grains move only while a note is held.
@@ -350,6 +412,7 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
         for (u32 n = 0; n < grain_first + dash_lengths * grain_shown; ++n)
             if (n < header_first || n >= pos_node) hide(frame, n);
         for (u32 i = 0; i < 3; ++i) hide(frame, octave_first + i);
+        for (u32 i = 0; i < 2; ++i) hide(frame, trim_first + i);
         return;
     }
     hide(frame, cover_stage);
@@ -359,5 +422,6 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     place_marks(frame, input, sample, moving ? state.scan : 0, held);
     place_lanes(frame, chord);
     place_grains(state, input, frame, sample, moving);
+    place_trim(frame, sample, input.shift != 0);
 }
 }

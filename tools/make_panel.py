@@ -97,6 +97,11 @@ out.append(node(20, rect(0, -0.15, 64, 0.15)))                                  
 for s, length in enumerate((6, 16, 40)):
     for g in range(8):
         out.append(node(21 + 8 * s + g, rect(-length / 2, -1.3, length / 2, 1.3)))           # grains
+# Nodes 50 and 51: the stock sampler's start and end markers on the strip,
+# Shift's start and end, each a bar with a flag at its top pointing into the
+# part grains read. Each starts at its flag's corner, where both edges are long.
+out.append(node(50, outline([(-0.6, -23), (5, -23), (0.6, -18.6), (0.6, 21), (-0.6, 21)]), "#e6e6e6", 0.5, "#e6e6e6"))
+out.append(node(51, outline([(0.6, -23), (0.6, 21), (-0.6, 21), (-0.6, -18.6), (-5, -23)]), "#e6e6e6", 0.5, "#e6e6e6"))
 for i in range(16):
     grey = f"#{i * 17:02x}{i * 17:02x}{i * 17:02x}"
     out.append(f'<circle id="{ID}_palette_{i}" cx="640" cy="0" r="1" fill="{grey}" stroke="{grey}" stroke-width="1"/>')
