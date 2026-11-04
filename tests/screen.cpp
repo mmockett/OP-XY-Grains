@@ -61,6 +61,28 @@ struct Screen {
     bool shown(u32 node) const { return frame.nodes[node].x != opxy::draw::hidden_x * opxy::draw::unit; }
     i32 x(u32 node) const { return frame.nodes[node].x / opxy::draw::unit; }
     const char* text(u32 slot) const { return frame.texts[slot].chars; }
+    // Bin b's column on the strip: shown, and its top and bottom, px.
+    bool column(u32 b, double& top, double& bottom) const {
+        const opxy::draw::Node& n = frame.nodes[grains::sample_line + 1 + b];
+        const double h = n.scale / 1024.0 * 4 * 20;   // authored 8 x 20 px tall, scaled to its span
+        top = n.y / 1024.0 - h; bottom = n.y / 1024.0 + h;
+        return shown(grains::sample_line + 1 + b);
+    }
+    // How far the strip's columns reach from its centre line, px.
+    double reach() const {
+        double most = 0, top, bottom;
+        for (u32 b = 0; b < grains::sample_view::sample_columns; ++b)
+            if (column(b, top, bottom)) most = std::fmax(most, std::fmax(186 - top, bottom - 186));
+        return most;
+    }
+    bool hint_shown() const {
+        bool all = true, none = true;
+        for (u32 k = 0; k < grains::sample_view::sample_hint_nodes; ++k) { all = all && shown(grains::swap_first + k); none = none && !shown(grains::swap_first + k); }
+        const bool words = !std::strcmp(text(grains::swap_text), "swap") && !std::strcmp(text(grains::swap_text + 1), "shift +");
+        if (all && words) return true;
+        if (!none || text(grains::swap_text)[0] || text(grains::swap_text + 1)[0]) { std::printf("FAIL the swap hint half shown\n"); ++failures; }
+        return false;
+    }
 };
 }
 const opxy::draw::SampleOverview* opxy_sample_overview() { return &overview; }
@@ -121,12 +143,10 @@ int main() {
             check(!std::strcmp(s.text(6), want), "the gain reads in stock's signed steps");
             const double w = caption_width(s.text(6), 20);
             check(w >= 0 && w <= 53, "the gain's caption fits 53 px");
-            double tallest = 0;   // drawn px from the centre line
-            for (u32 h = 0; h < grains::Frame::path_count; ++h)
-                for (const opxy::draw::Point& q : s.frame.paths[h].points)
-                    tallest = std::fmax(tallest, std::fabs(q.y / 1024.0) * s.frame.nodes[h].scale / 1024.0);
-            if (g % 10 == 0 && g <= 0) { check(tallest > last_ten + 0.2, "the waveform grows with the gain"); last_ten = tallest; }
-            check(tallest >= last && tallest <= 20.375, "the waveform never shrinks as the gain rises, and stays within 20 px a side (and its 3/8 px ribbon)");
+            const double tallest = s.reach();   // drawn px from the centre line
+            // At -30 a quiet sample may be the centre line alone.
+            if (g % 10 == 0 && g <= 0) { check(g == -30 || tallest > last_ten + 0.2, "the waveform grows with the gain"); last_ten = tallest; }
+            check(tallest >= last && tallest <= 20.01, "the waveform never shrinks as the gain rises, and stays within 20 px a side");
             last = tallest;
         }
         // No gain known (gain_unavailable): its cell shows nothing, and the waveform is as at +0.
@@ -139,110 +159,91 @@ int main() {
         Screen z;
         z.input.shift = 1;
         z.run(2);
-        bool same = true;
-        for (u32 h = 0; h < grains::Frame::path_count; ++h)
-            for (u32 i = 0; i < 64; ++i) same = same && u.frame.paths[h].points[i].y == z.frame.paths[h].points[i].y;
-        check(same, "an unknown gain leaves the waveform as at +0");
+        check(!std::memcmp(&u.frame.nodes[grains::sample_line], &z.frame.nodes[grains::sample_line], 97 * sizeof(opxy::draw::Node)),
+              "an unknown gain leaves the waveform as at +0");
     }
-    {   // The waveform: 60 columns across the strip, each from its stretch of
-        // the overview's 96 bins, its high above the centre line and its low
-        // below, each drawn to its own height, as a sampler draws a sample; every
-        // path a thin closed ribbon the device draws cleanly (distinct
-        // neighbours, within 64 px, no hairpin turns, area, no crossing).
+    {   // The waveform (sample_view.h): a column for each of the overview's 96
+        // bins across the strip, from the bin's lowest value (below the centre
+        // line) to its highest (above), as a sampler draws a sample, its reach
+        // the root of the value against the loudest's; still at rest and while
+        // a note plays; redrawn for a new sample, 12 columns a frame at most.
         overview.gain = 0;
         for (u32 b = 0; b < 96; ++b) { overview.high[b] = 2000; overview.low[b] = -2000; }
         overview.high[50] = 32767; overview.low[50] = -8192;   // a hit, lopsided
+        overview.high[60] = 0; overview.low[60] = 0;           // silence
         overview.generation = 7;
         Screen s;
         s.run();
-        const double pitch = 432.0 / 60;   // bin 50 is in column 31 (bins 49.6 .. 51.2)
-        double top_x = 0, top = 0, bottom50 = 0, quiet = 1e9;
-        for (u32 h = 0; h < grains::Frame::path_count; ++h) {
-            const opxy::draw::Node& n = s.frame.nodes[h];
-            check(n.scale == 1024, "the waveform is drawn 1:1");
-            const auto& pts = s.frame.paths[h].points;
-            double sharpest = 180, area = 0;
-            for (u32 i = 0; i < 64; ++i) {
-                const opxy::draw::Point &a = pts[i], &b = pts[(i + 1) % 64], &c = pts[(i + 2) % 64];
-                const double x = (n.x + a.x) / 1024.0, y = a.y / 1024.0;
-                if (i < 32) {   // out along the zigzag
-                    if (-y > top) { top = -y; top_x = x; }
-                    if (std::fabs(x - (24 + pitch * 31.75)) < 0.01) bottom50 = y;
-                    if (i % 2 == 1 && i < 31) quiet = std::fmin(quiet, std::fabs(y));   // each column's high
-                    // Back 3/8 px below, point for point: a ribbon that can't cross itself.
-                    check(pts[63 - i].x == a.x && pts[63 - i].y == a.y + 384, "the outline comes back 3/8 px below the zigzag");
-                }
-                check(std::abs(a.x) <= 64 * 1024 && std::abs(a.y) <= 64 * 1024, "waveform points stay within 64 px");
-                check(std::max(std::abs(a.x - b.x), std::abs(a.y - b.y)) >= 256, "waveform neighbours and ends stay 1/4 px apart");
-                const double ux = b.x - a.x, uy = b.y - a.y, vx = c.x - b.x, vy = c.y - b.y, dot = ux * vx + uy * vy;
-                if (dot < 0) sharpest = std::fmin(sharpest, std::atan2(std::fabs(ux * vy - uy * vx), -dot) * 180 / M_PI);
-                area += (double(a.x) * b.y - double(b.x) * a.y) / (1024.0 * 1024.0) / 2;
-            }
-            check(sharpest > 2.5, "no waveform turn is sharper than the device's 2.5 degrees");
-            check(std::fabs(area) > 30, "each waveform path has real area");
-        }
-        check(std::fabs(top_x - (24 + pitch * 31.25)) < 0.01, "the loudest bin peaks in its own column");
-        check(std::fabs(top - 13) < 0.1, "a full-scale peak stands 13 px at +0");
-        check(bottom50 > 4.2 && bottom50 < 5.0, "the column's low (-12 dB) is drawn to its own, smaller depth, 4.6 px");
-        check(quiet > 1.4 && quiet < 1.8, "a quiet bin (-24 dB) still stands 1.6 px, twice what a straight scale draws");
-        // Still while nothing changes; rebuilt only for a new sample.
+        double top, bottom;
+        check(s.column(50, top, bottom), "the hit has a column");
+        check(std::fabs(s.frame.nodes[grains::sample_line + 51].x / 1024.0 - (24 + 432.0 * 101 / 192)) < 0.01, "the hit's column stands over its own bin");
+        check(std::fabs(186 - top - 17.06) < 0.1, "the loudest bin reaches 85% of the 20 px at +0");
+        check(std::fabs(bottom - 186 - 8.53) < 0.1, "its low (a quarter of the loudest) reaches half as far, below the line");
+        check(s.column(10, top, bottom) && std::fabs(186 - top - 4.21) < 0.1 && std::fabs(bottom - 186 - 4.21) < 0.1,
+              "a quiet bin (-24 dB) still stands 4.2 px either side, the root of its level");
+        check(!s.column(60, top, bottom), "a silent bin leaves only the centre line");
+        check(s.shown(grains::sample_line), "the centre line");
+        // Still while nothing changes, and while a note plays; rebuilt only for a new sample.
         grains::Frame before = s.frame;
         s.run(30);
-        check(!std::memcmp(&before, &s.frame, sizeof before), "at rest no node, path or text changes");
+        check(!std::memcmp(&before, &s.frame, sizeof before), "at rest no node or text changes");
         s.input.note_serial = 1; s.input.held_notes = 1;
         s.run(1);
         before = s.frame;
         s.run(60);
-        bool same_paths = true;
-        for (u32 h = 0; h < grains::Frame::path_count; ++h)
-            same_paths = same_paths && s.frame.paths[h].key == before.paths[h].key &&
-                         !std::memcmp(&s.frame.paths[h].points, &before.paths[h].points, sizeof before.paths[h].points);
-        check(same_paths, "the waveform isn't rebuilt while a note plays");
-        overview.generation = 8; overview.high[50] = 2000;
-        s.run(1);
-        check(s.frame.paths[2].key != before.paths[2].key, "a new sample rebuilds the waveform");
-        // Before the overview is read: the flat stand-in.
+        check(!std::memcmp(&before.nodes[grains::sample_line], &s.frame.nodes[grains::sample_line], 97 * sizeof(opxy::draw::Node)),
+              "the waveform doesn't change while a note plays");
+        overview.generation = 8; overview.high[50] = 2000; overview.low[50] = -2000;
+        u32 most = 0, frames = 0;
+        for (u32 f = 0; f < 20; ++f) {
+            const grains::Frame was = s.frame;
+            s.run(1);
+            u32 changed = 0;
+            for (u32 n = 0; n <= 96; ++n)
+                changed += std::memcmp(&was.nodes[grains::sample_line + n], &s.frame.nodes[grains::sample_line + n], sizeof(opxy::draw::Node)) != 0;
+            most = std::max(most, changed);
+            frames += changed != 0;
+        }
+        check(frames > 0 && most <= 12, "a new sample redraws the waveform, 12 columns a frame at most");
+        // Before the overview is read: the flat stand-in, the centre line alone.
         overview.loaded = 0;
         Screen f;
         f.run(2);
-        double flat = 0;
-        for (u32 h = 0; h < grains::Frame::path_count; ++h)
-            for (const opxy::draw::Point& q : f.frame.paths[h].points) flat = std::fmax(flat, std::fabs(q.y / 1024.0));
-        check(flat == 0.75 + 0.375, "a sample still loading shows the flat stand-in, 0.75 px either side and its ribbon");
+        check(f.shown(grains::sample_line) && f.reach() == 0, "a sample still loading shows the flat stand-in: the centre line alone");
         overview.loaded = 1;
         overview.generation = 1;
         for (u32 b = 0; b < 96; ++b) { const opxy::i16 peak = opxy::i16((40 + (b * 37) % 200) << 7); overview.high[b] = peak; overview.low[b] = opxy::i16(-peak); }
     }
-    {   // The swap hint: hidden (its cover placed) until Shift is held on a
-        // loaded sample, then shown (its cover hidden), and nothing else of the
-        // stage moves for it.
+    {   // The swap hint (sample_view.h, on one line): hidden until Shift is held
+        // on a loaded sample, then shown above the strip's right end, and
+        // nothing else of the stage moves for it.
         Screen s;
         s.run();
-        check(s.shown(grains::swap_cover), "no swap hint without Shift");
+        check(!s.hint_shown(), "no swap hint without Shift");
         s.input.shift = 1;
         s.run(1);
-        check(!s.shown(grains::swap_cover), "Shift shows the swap hint on a loaded sample");
+        check(s.hint_shown() && s.x(grains::swap_first) == 362 - 0 + 33, "Shift shows the swap hint on a loaded sample, in its place");
         s.run();
         grains::Frame held = s.frame;
         s.run(30);
         check(!std::memcmp(&held.nodes, &s.frame.nodes, sizeof held.nodes), "the hint holds still while Shift stays down");
         s.input.shift = 0;
         s.run(1);
-        check(s.shown(grains::swap_cover), "letting Shift go hides the swap hint");
+        check(!s.hint_shown(), "letting Shift go hides the swap hint");
         s.input.reduced_motion = 1;
         s.input.shift = 1;
         s.run(1);
-        check(!s.shown(grains::swap_cover), "reduced motion shows the hint just the same");
+        check(s.hint_shown(), "reduced motion shows the hint just the same");
         overview.loaded = 0;
         Screen l;
         l.input.shift = 1;
         l.run();
-        check(l.shown(grains::swap_cover), "no swap hint while the sample is still loading");
+        check(!l.hint_shown(), "no swap hint while the sample is still loading");
         overview.assigned = 0;
         Screen e;
         e.input.shift = 1;
         e.run();
-        check(e.shown(grains::swap_cover), "no swap hint over the empty state's own load hint");
+        check(!e.hint_shown(), "no swap hint over the empty state's own load hint");
         overview.assigned = overview.loaded = 1;
     }
     {   // No sample: Shift's row shows no times, and nothing is drawn on the stage.

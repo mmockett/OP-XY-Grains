@@ -5,145 +5,16 @@
 #include "tables.h"
 #include <opxy/sample_overview.hpp>
 
-// --- sample view (to be shared) ---
-// A sample engine's waveform and its Shift-time swap hint, written to be lifted
-// into a header shared by the sample engines (and later the SDK): they use only
-// SampleOverview and the frame API, take everything machine-specific as
-// arguments, and do no 64-bit maths.
-namespace grains { namespace sample_view {
-using opxy::i32;
-using opxy::u32;
-
-// The square root of a 32-bit value, rounded down.
-inline u32 root(u32 value) {
-    u32 result = 0;
-    for (u32 bit = 1u << 30; bit; bit >>= 2) {
-        if (value >= result + bit) { value -= result + bit; result = (result >> 1) + bit; }
-        else result >>= 1;
-    }
-    return result;
-}
-
-// Stock's gain steps (-30..+20, SampleOverview.gain) as a Q10 height factor:
-// twice as tall each 10 steps up, 1024 at +0, 128 at -30, 4096 at +20. An
-// unknown gain (gain_unavailable) reads as +0.
-inline u32 gain_scale(i32 gain) {
-    const i32 g = gain == opxy::draw::gain_unavailable ? 0 : gain < -30 ? -30 : gain > 20 ? 20 : gain;
-    const u32 s = u32(g + 30);
-    return (128u << (s / 10)) * (10 + s % 10) / 10;
-}
-
-// Columns each waveform path carries, at 64 points: its outline runs out along
-// the zigzag (a point where it starts, each column's high and low, a point where
-// it ends) and back along the same zigzag a few tenths of a pixel lower.
-const u32 wave_columns_per_path = 15;
-// How far below the zigzag its outline comes back, Q10 px: 3/8 px, so the
-// outline has real area, never crosses itself, and its ends (the closing edge)
-// stay over the 1/4 px the device needs.
-const i32 wave_ribbon = 384;
-
-// A column's high and low over the bins it covers within begin..end (Q16 of the
-// whole), of columns across; 0 and 0 without an overview.
-inline void wave_column(const opxy::draw::SampleOverview* o, u32 c, u32 columns, u32 begin, u32 span, i32& high, i32& low) {
-    const u32 bins = opxy::draw::overview_bins, step = span * bins / columns;   // Q16 bins a column
-    u32 b0 = (begin * bins + step * c) >> 16, b1 = (begin * bins + step * (c + 1) + 65535) >> 16;
-    if (b0 >= bins) b0 = bins - 1;
-    if (b1 > bins) b1 = bins;
-    if (b1 <= b0) b1 = b0 + 1;
-    high = 0;
-    low = 0;
-    for (u32 b = b0; o && b < b1; ++b) {
-        if (o->high[b] > high) high = o->high[b];
-        if (o->low[b] < low) low = o->low[b];
-    }
-}
-
-// The sample's waveform as a sampler draws it: one column per stretch of the
-// sample, a line zigzagging from each column's high (above the centre line) to
-// its low (below), so a hit reads as a spike and a pad as a dense band. Each
-// path is a thin closed ribbon (out along the zigzag, back 3/8 px below it):
-// it never crosses itself and always has area, as the device needs.
-//
-// paths reshaping paths from first_path (1..4, 64 points each) share
-// 15 * paths columns over w px from x, centred on y: 60 columns with 4 paths,
-// each from 1.6 of the overview's 96 bins, its highest high and lowest low.
-// Each path spans w / paths px and must stay within the SDK's 64 px either
-// side (w <= 128 * paths). full: the half height in px of a full-scale peak at
-// +0 gain; gain: stock's steps (gain_scale); half_h: the most either side, in
-// px. Heights follow the level to the power 0.75, so quiet material still
-// shows; a silent column keeps 0.75 px either side. begin..end: the part of the
-// sample shown, Q16 of the whole (0..65536). o null (or not loaded) draws the
-// flat stand-in. The points are rebuilt only when key changes (give each
-// sample, gain and span its own non-zero key); otherwise only the shade can
-// change, so a still waveform costs nothing.
-template <class F>
-void place_waveform(F& frame, u32 first_path, u32 paths, const opxy::draw::SampleOverview* o, i32 x, i32 y, i32 w,
-                    i32 half_h, i32 full, i32 gain, u32 begin, u32 end, u32 shade, u32 key) {
-    static_assert(F::point_count >= 4 * wave_columns_per_path + 4, "a waveform path needs 64 points");
-    using opxy::draw::unit;
-    using opxy::draw::Point;
-    if (o && (!o->loaded || !o->frames)) o = nullptr;
-    if (end > 65536) end = 65536;
-    if (begin >= end) { begin = 0; end = 65536; }
-    const u32 columns = wave_columns_per_path * paths, span = end - begin;
-    u32 tallest = (u32(full) * unit * gain_scale(gain)) >> 10;     // Q10 px
-    if (tallest > 65535) tallest = 65535;
-    const i32 most = half_h * unit, least = unit * 3 / 4;
-    // A level (0..32768) as its drawn height, Q10 px: tallest * (level / 32768)^0.75,
-    // a gentle compression, so quiet material shows and loud still stands out.
-    auto height = [&](i32 level) {
-        const u32 v = u32(level < 0 ? 0 : level > 32768 ? 32768 : level);
-        const u32 r = root((v * root(v << 15)) >> 15 << 15);   // 32768 (v / 32768)^0.75
-        const i32 h = i32((tallest * r) >> 15);
-        return h < least ? least : h > most ? most : h;
-    };
-    // Column c's top (its high, above the centre: negative) and bottom, Q10 px.
-    auto top = [&](u32 c) { i32 high, low; wave_column(o, c, columns, begin, span, high, low); return -height(high); };
-    auto bottom = [&](u32 c) { i32 high, low; wave_column(o, c, columns, begin, span, high, low); return height(-low); };
-    // Q10 px from the waveform's left edge, in quarters of a column.
-    auto at = [&](u32 quarter) { return i32(u32(w) * unit * quarter / (4 * columns)); };
-    for (u32 p = 0; p < paths; ++p) {
-        const u32 first = p * wave_columns_per_path, last = first + wave_columns_per_path;
-        const i32 origin = at(4 * first + 2 * wave_columns_per_path);   // the path's middle
-        typename F::path_type& path = frame.paths[first_path + p];
-        if (path.key != key) {
-            // Out along the zigzag. Inner ends sit halfway along the line from
-            // one path's last low to the next one's first high, so the paths
-            // join seamlessly; the waveform's own ends are on the centre line.
-            Point out[F::point_count];
-            u32 n = 0;
-            out[n++] = Point{at(4 * first) - origin, first ? (bottom(first - 1) + top(first)) / 2 : 0};
-            for (u32 c = first; c < last; ++c) {
-                out[n++] = Point{at(4 * c + 1) - origin, top(c)};
-                out[n++] = Point{at(4 * c + 3) - origin, bottom(c)};
-            }
-            out[n++] = Point{at(4 * last) - origin, last < columns ? (bottom(last - 1) + top(last)) / 2 : 0};
-            // Back along it, 3/8 px lower; any points left over repeat the
-            // last, as padding.
-            for (u32 i = 0; i < n; ++i) path.points[i] = out[i];
-            for (u32 i = 0; i < n; ++i) path.points[n + i] = Point{out[n - 1 - i].x, out[n - 1 - i].y + wave_ribbon};
-            for (u32 i = 2 * n; i < F::point_count; ++i) path.points[i] = path.points[2 * n - 1];
-            path.key = key;
-        }
-        opxy::draw::place(frame, first_path + p, x * unit + origin, y * unit, unit, shade, opxy::draw::stroke);
-    }
-}
-
-// The hint to swap the loaded sample (Shift + the Sample key), shown only
-// while Shift is held. Its words and key icon are static artwork at (x, y);
-// cover_node, a filled box in the background's shade drawn just after them,
-// hides them the rest of the time. Only the cover moves, on Shift's edges.
-template <class F>
-void place_swap_hint(F& frame, u32 cover_node, i32 x, i32 y, bool shown, u32 background = 0) {
-    using opxy::draw::unit;
-    if (shown) opxy::draw::hide(frame, cover_node);
-    else opxy::draw::place(frame, cover_node, x * unit, y * unit, unit, background, opxy::draw::fill_and_stroke);
-}
-}}
-// --- end of sample view ---
 
 namespace grains {
 namespace {
+// The sample's view, shared byte for byte with the other sample engines
+// (sample_view.h): the strip's waveform, the trim's markers and the swap hint.
+namespace sample_view {
+#include "sample_view.h"
+}
+using sample_view::SampleSlot;
+
 // The track's amp envelope as the screen follows it (SDK 1.10, input.amp),
 // so the note's motion lasts as long as its sound. The times and shapes are
 // stock OS 1.2.1's, from amp_curve.h (a byte-identical copy of the helper the
@@ -336,35 +207,34 @@ void shift_row(const Input& input, const opxy::u8 (&pages)[2][4], const opxy::dr
     }
 }
 
+// The strip: the whole sample's waveform (sample_view.h), x 24..456 about
+// y 186, at most 20 px a side, its columns lit within the markers and dim
+// outside them, scaled by the gain, twice as tall each 10 of stock's steps up.
+// It changes only with the sample, its trim or its gain, 12 columns a frame
+// at most; a note doesn't touch it.
+const SampleSlot strip = {left * unit, width * unit, strip_y * unit, 20 * unit, mid, octave, 3};
+void place_strip(DisplayState& state, Frame& frame, const opxy::draw::SampleOverview& o, bool snap) {
+    sample_view::place_waveform(frame, sample_line, o, strip, state.wave_key, snap, 12);
+}
+
 // The stock sampler's start and end markers on the strip: shown while Shift
 // edits them, and whenever they trim the sample, so pos's span reads.
 void place_trim(Frame& frame, const Sample& sample, bool shift) {
     const opxy::draw::SampleOverview* o = sample.overview;
     const bool trimmed = o && ((o->begin && o->begin < o->frames) || (o->end && o->end < o->frames));
     if (!shift && !trimmed) { hide(frame, trim_first); hide(frame, trim_first + 1); return; }
-    const u32 marks[2] = {sample.begin, sample.end};
-    for (u32 i = 0; i < 2; ++i)
-        place(frame, trim_first + i, (left * unit) + i32((u32(width) * unit * (marks[i] >> 4)) >> 12), strip_y * unit, unit,
-              shift ? bright : mid, fill_and_stroke);
+    sample_view::place_trim_marks(frame, trim_first, *opxy_sample_overview(), strip, shift ? bright : mid);
 }
 
-// The strip: the whole sample's waveform (sample_view::place_waveform), its
-// height scaled by the gain, twice as tall each 10 of stock's steps up: a
-// full-scale peak 13 px a side at +0, at most 20 px a side.
-void place_strip(Frame& frame, const Sample& sample, bool held) {
-    sample_view::place_waveform(frame, strip_first, strip_paths, sample.overview, left, strip_y, width, 20, 13,
-                                sample.gain, 0, 65536, held ? mid : dim, sample.key);
-}
-
-// The swap hint (Shift + the Sample key) above the strip's right end, while
-// Shift is held on a loaded sample.
-const i32 swap_x = 355, swap_y = 151;
+// The swap hint (Shift + the Sample key) above the strip's right end, on one
+// line, while Shift is held on a loaded sample.
+const i32 swap_x = 362, swap_y = 151;
 
 // One edge of the window: an authored 64 px ribbon from the peak, turned to
 // pass through its foot, (run, down) in 1/64 px away. It runs on off the bottom
 // of the screen, so it's never scaled and keeps its width.
 void place_edge(Frame& frame, u32 node, i32 x, i32 y, i32 run, i32 down, u32 shade) {
-    const i32 length = i32(sample_view::root(u32(run * run + down * down)));
+    const i32 length = i32(sample_view::sample_root(u32(run * run + down * down)));
     place(frame, node, x, y, unit, shade, stroke);
     const Turn edge = {run * unit / length, down * unit / length};
     turn(frame, node, edge);
@@ -506,6 +376,8 @@ inline void display_reset(DisplayState& state) {
     state.spawned = 0;
     state.track = ~0u;
     state.swell = Swell{0, 0, 0};
+    state.wave_key = 0;
+    state.drawn = 0;
 }
 
 inline void display(DisplayState& state, const Input& input, Frame& frame) {
@@ -567,27 +439,27 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     }
 
     // With no sample, the stage gives way to how to load one.
+    const bool snap = !state.drawn || input.reduced_motion;
+    state.drawn = 1;
     if (!overview.assigned) {
-        place_strip(frame, sample, false);   // every path keeps a shape, shown or not
+        place_strip(state, frame, overview, snap);   // hides the strip
         place(frame, cover_stage, 0, 0, unit, 0, fill_and_stroke);
         hide(frame, cover_hint);
-        for (u32 n = 0; n < grain_first + dash_lengths * grain_shown; ++n)
-            if (n < header_first || n >= pos_node) hide(frame, n);
+        for (u32 n = pos_node; n < grain_first + dash_lengths * grain_shown; ++n) hide(frame, n);
         for (u32 i = 0; i < 3; ++i) hide(frame, octave_first + i);
         for (u32 i = 0; i < 2; ++i) hide(frame, trim_first + i);
-        hide(frame, centre_line);
-        sample_view::place_swap_hint(frame, swap_cover, swap_x, swap_y, false);
+        sample_view::place_swap_hint(frame, swap_first, swap_text, swap_x * unit, swap_y * unit, false, sample_view::sample_hint_in_line);
         return;
     }
     hide(frame, cover_stage);
     place(frame, cover_hint, 0, 0, unit, 0, fill_and_stroke);
     for (u32 i = 0; i < 3; ++i) place(frame, octave_first + i, 0, 0, unit, octave, stroke);
-    place(frame, centre_line, 0, 0, unit, octave, stroke);
-    place_strip(frame, sample, sounding);
+    place_strip(state, frame, overview, snap);
     place_marks(frame, input, sample, moving ? state.scan : 0, sounding);
     place_lanes(frame, chord);
     place_grains(state, input, frame, sample, moving);
     place_trim(frame, sample, input.shift != 0);
-    sample_view::place_swap_hint(frame, swap_cover, swap_x, swap_y, input.shift && sample.overview);
+    sample_view::place_swap_hint(frame, swap_first, swap_text, swap_x * unit, swap_y * unit, input.shift && sample.overview,
+                                 sample_view::sample_hint_in_line);
 }
 }

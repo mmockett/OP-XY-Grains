@@ -143,9 +143,14 @@ machine's own samples yet, so use `sdk.py build`.
   (`tools/gen_tables.py` writes them).
 - `display.cpp`: the screen ([docs/SCREEN.md](docs/SCREEN.md)), its artwork in
   `panel.svg.fragment` (`tools/make_panel.py` writes it).
+- `sample_view.h`, with its artwork in `tools/sample_view.py`: the strip's
+  waveform, the trim's markers and the swap hint, shared byte for byte with
+  the Nonagon Suite's Ghost and Recur (its `tools/check_shared.py` checks the
+  copies). Change them only together.
 - `tests/sound.cpp`: the engine's sound tests, and `tests/screen.cpp`, the
-  waveform (its columns, heights and device-safe outline, rebuilt only for a
-  new sample or gain), the swap hint, Shift's markers and captions, the
+  waveform (a column a bin from its lowest value to its highest, heights the
+  root of the level, still while a note plays, redrawn for a new sample at
+  most 12 columns a frame), the swap hint, Shift's markers and captions, the
   gain's every step and its width, a blank cell for an unknown gain, and the
   waveform growing with the gain, and that grains
   follow the amp envelope (gone at release when it's unknown or short, still

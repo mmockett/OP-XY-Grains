@@ -116,12 +116,12 @@
       "end"
     ],
     "display": {
-      "stateBytes": 132,
+      "stateBytes": 140,
       "stateAlignment": 4,
-      "paths": 4,
-      "points": 64,
-      "nodes": 56,
-      "texts": 16,
+      "paths": 0,
+      "points": 0,
+      "nodes": 150,
+      "texts": 18,
       "palette": 16
     }
   }

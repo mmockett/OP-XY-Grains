@@ -26,17 +26,18 @@ straight above the stretch of sample it reads.
 
 ## Parts
 
-- **Strip** (paths 0 to 3, `sample_view::place_waveform`): the sample's
-  waveform as a sampler draws it, 60 columns across, each from its 1.6 of the
-  overview's 96 bins: a line zigzags from each column's high, above the centre
-  line, to its low, below it, so a hit stands out as a spike and a held sound
-  as a dense band. Heights follow the level to the power 0.75 (a full-scale
-  peak 13 px at +0, a -24 dB one 1.6 px rather than 0.8), and a silent column
-  keeps 0.75 px a side. Each path holds 15 columns as a thin closed ribbon:
-  out along the zigzag and back 3/8 px below it, so it never crosses itself
-  and always has area, and its sharpest turn is about 8°. A faint centre line
-  (node 55) runs under it. Dim at rest, brighter while a note plays. Before a
-  sample's overview is read it is flat, the same zigzag at 0.75 px.
+- **Strip** (`sample_view.h`, shared with Ghost and Recur): the sample's
+  waveform as a sampler draws it, a column for each of the overview's 96
+  bins across the strip (4.5 px apart), from the bin's lowest value, below a
+  faint centre line, to its highest, above it, so a hit stands out as a tall
+  lopsided column and a held sound as a dense band. A column reaches as far
+  as the root of its value against the loudest bin's, the loudest 17 px (85%
+  of the 20 px) at +0, so quiet material still shows; a column shorter than
+  5 px (an eighth of the strip) is left out and the line shows there.
+  Columns between the start and end markers are lit, those outside dim; a
+  note doesn't change them. They are redrawn only for a new sample, its trim
+  or its gain, at most 12 a frame. Before a sample's overview is read the
+  strip is flat: the centre line alone.
 - **pos**: a bright vertical line through the strip.
 - **scan**: an arrow off the top of the pos line, pointing the way it moves,
   longer when faster. At 0 (frozen) a short cap instead.
@@ -54,13 +55,13 @@ straight above the stretch of sample it reads.
   peak down to feet 48 px apart on the screen's bottom edge. The peak slides
   from the right (0, a swell) to the left (100, a pluck), where the engine
   puts it.
-- **Swap hint** (`sample_view::place_swap_hint`): while Shift is held on a
-  loaded sample, "swap", "shift +" and the Sample key's icon above the
-  strip's right end, at 11 px in the empty state's shades (#CBCBCB, #7D7D7D),
-  the key 13 px with three of its bars. The words and icon are static
-  artwork; node 54, a box in the background drawn just after them, covers
-  them the rest of the time, so Shift's edges move one node. It stops short
-  of the end marker's flag, and the strip and marks draw over it.
+- **Swap hint** (`sample_view.h`, as Ghost and Recur show it): while Shift
+  is held on a loaded sample, "swap", "shift +" and the Sample key's icon on
+  one line above the strip's right end (x 362 to 447, y 151 to 165), at
+  10 px in the empty state's shades (#CBCBCB, #7D7D7D), the key 14 px. The
+  icon is 3 nodes and the words 2 text slots, off screen the rest of the
+  time, so Shift's edges move them and nothing else. It stops short of the
+  end marker's flag, and the strip and marks draw over it.
 - **Start and end** (Shift + encoders 1, 2 and 4, the stock sampler's
   markers): a bar each on the strip, a flag at its top pointing into the part
   grains read. Shown bright while Shift is held, and a step dimmer whenever
@@ -98,23 +99,29 @@ straight above the stretch of sample it reads.
 
 ## Budget
 
-Within the SDK's frame (4 paths of 64 points, 256 nodes, 16 shades, 16 text
-slots):
+Within the SDK's frame (no paths, 150 nodes, 16 shades, 18 text slots):
 
 | Part | Uses |
 | --- | --- |
-| Header | 8 bar nodes and all 16 text slots |
-| Strip | 4 paths (15 columns each, 64 points), the centre line |
-| Swap hint | 1 node (its cover) |
+| Header | 8 bar nodes and text slots 0 to 15 |
+| Strip | 97 nodes: the centre line and 96 columns (`sample_view.h`) |
+| Swap hint | 3 nodes (the key's icon) and text slots 16 and 17 |
 | pos, scan, spry | 5 nodes (line, arrow, cap, a pair of dotted lines) |
 | shpe | 2 nodes (the window's edges, sharing the peak as their pivot) |
 | Lanes | 7 nodes (3 octaves, up to 4 chord notes) and 3 static labels |
 | Grains | 24 nodes, the most grains shown at once; dashes in 3 authored lengths for short, medium and long sizes, scaled within each (a node scales uniformly, at most 2×) |
 | Start and end | 2 nodes |
+| No sample | 2 nodes (the covers) |
 
-56 nodes and 4 paths, leaving room for later parts. The waveform and swap
-hint sit in their own block at the top of `display.cpp` (`sample view (to be
-shared)`), written to be shared with the other sample engines: they take
-their place, size, shades and nodes as arguments and use only
-`SampleOverview` and the frame API. Lane labels are static
-`<text>` in the device font; the header takes every text slot.
+150 nodes and no reshaping paths. The strip, the markers and the swap hint
+come from `sample_view.h` (with its artwork in `tools/sample_view.py`),
+shared byte for byte with the Nonagon Suite's Ghost and Recur: it takes the
+slot's place, size, shades and nodes as arguments and uses only
+`SampleOverview` and the frame API. Lane labels are static `<text>` in the
+device font.
+
+Churn over a scripted run (at rest, notes, a minor chord with spry, Shift
+held with the trim slid and the gain stepped, on the wane sample) averages
+4.0 nodes a frame, 8.4 while a note is held, and peaks at 27 while Shift
+slides the trim (pos, its marks and grains following, and 12 columns
+redrawn); at rest nothing changes.
