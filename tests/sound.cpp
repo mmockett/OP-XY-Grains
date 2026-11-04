@@ -3,6 +3,9 @@
 #include "../sample.cpp"
 #include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <string>
+#include <vector>
 
 namespace {
 using opxy::i32;
@@ -356,6 +359,52 @@ int main() {
             }
         }
     }
-    if (!failures) std::puts("PASS grains: silence, levels, freeze, scan, chords, pitch, sync, osc, shape, size, spry, reverse, window, budget");
+    // The shipped sample (samples/wane.wav, every preset's region): the init sound and every
+    // preset play it, within the declared peak and well above silence.
+    {
+        std::string path = __FILE__;
+        path = path.substr(0, path.find_last_of("/\\") + 1) + "../samples/wane.wav";
+        std::vector<opxy::i16> wane;
+        if (FILE* f = std::fopen(path.c_str(), "rb")) {
+            std::vector<unsigned char> bytes;
+            unsigned char buffer[4096];
+            for (size_t n; (n = std::fread(buffer, 1, sizeof buffer, f)) > 0;) bytes.insert(bytes.end(), buffer, buffer + n);
+            std::fclose(f);
+            // RIFF chunks after the 12-byte header: 16-bit mono PCM in "data".
+            for (size_t at = 12; at + 8 <= bytes.size();) {
+                const u32 size = bytes[at + 4] | bytes[at + 5] << 8 | bytes[at + 6] << 16 | u32(bytes[at + 7]) << 24;
+                if (!std::memcmp(&bytes[at], "fmt ", 4))
+                    check(bytes[at + 10] == 1 && bytes[at + 22] == 16, "the shipped sample is 16-bit mono");
+                if (!std::memcmp(&bytes[at], "data", 4) && at + 8 + size <= bytes.size())
+                    for (u32 i = 0; i < size / 2; ++i) wane.push_back(opxy::i16(bytes[at + 8 + 2 * i] | bytes[at + 9 + 2 * i] << 8));
+                at += 8 + size + (size & 1);
+            }
+        }
+        check(wane.size() == 264600, "the shipped sample is read: 6 s at 44.1 kHz");
+        if (!wane.empty()) {
+            const double values[7][8] = {{0, 0.853553, 0.392468, 0.157895, 0, 0.071429, 0.5, 0.083333}, {0.380000, 0.500000, 0.705445, 0.578947, 0.180000, 0.214286, 0.500000, 0.083333}, {0.050000, 0.550000, 0.787870, 0.473684, 0.280000, 0.357143, 0.380000, 0.083333}, {0.300000, 0.515000, 0.599823, 0.684211, 0.240000, 0.642857, 0.500000, 0.083333}, {0.120000, 0.530000, 0.468999, 0.789474, 0.040000, 0.071429, 0.700000, 0.250000}, {0.340000, 0.500000, 0.194330, 0.263158, 0.000000, 0.357143, 0.500000, 0.416667}, {0.700000, 0.460000, 0.827060, 0.368421, 0.300000, 0.500000, 0.140000, 0.583333}};
+            const char* names[7] = {"default", "still", "drift", "choir", "stutter", "reed", "undertow"};
+            for (u32 n = 0; n < 7; ++n) {
+                Rig* rig = new Rig(wane.data(), u32(wane.size()));
+                for (u32 i = 0; i < 8; ++i) rig->parameters[i] = at(values[n][i]);
+                rig->run(200);   // past the first grains' rise
+                double sum = 0;
+                i32 peak = 0;
+                const u32 blocks = 1500;
+                for (u32 b = 0; b < blocks; ++b) {
+                    grains::render_sample(rig->voice, rig->block);
+                    for (u32 i = 0; i < 2 * opxy::block_frames; ++i) {
+                        const i32 x = rig->out[i];
+                        peak = x < 0 ? (-x > peak ? -x : peak) : (x > peak ? x : peak);
+                        sum += double(x) * x;
+                    }
+                }
+                const double rms = std::sqrt(sum / (blocks * 2.0 * opxy::block_frames)) / 2147483648.0;
+                if (peak > 1073741824 || rms < 0.01) { std::printf("FAIL preset %s on the shipped sample: peak %d, rms %.4f\n", names[n], peak, rms); ++failures; }
+                delete rig;
+            }
+        }
+    }
+    if (!failures) std::puts("PASS grains: silence, levels, freeze, scan, chords, pitch, sync, osc, shape, size, spry, reverse, window, budget, shipped sample");
     return failures ? 1 : 0;
 }

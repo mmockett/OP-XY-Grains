@@ -6,10 +6,10 @@ on:
 permissions:
   contents: read
 env:
-  # Grains needs SDK changes still in review (README.md), on this fork's branch;
-  # move to etcetc000/open-xy staging once they merge.
+  # Grains ships its own sample (SDK 1.10 "samples"), an SDK change still in review
+  # (README.md), on this fork's branch; move to etcetc000/open-xy staging once it merges.
   OPEN_XY_REPO: mmockett/open-xy
-  OPEN_XY_REF: sdk/sample-overview
+  OPEN_XY_REF: sdk/machine-samples
 jobs:
   machine:
     runs-on: ubuntu-latest

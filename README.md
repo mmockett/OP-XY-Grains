@@ -8,7 +8,7 @@ where it reads and at what pitch.
 ![Grains' screen: no sample loaded, at rest, while a note plays, and with a minor chord](docs/screen/preview.png)
 
 **Status: experimental.** Grains plays on an OP-XY running OS 1.2.1 and targets
-Open-XY SDK 1.8. Its render callback measures 3.067% of the stock block
+Open-XY SDK 1.10. Its render callback measures 3.067% of the stock block
 budget on the device (v1.1.0, one capture of `opxy-sample-callback-v1`,
 graphics excluded). That measures its defaults only, so a preset or setting with
 more grains, `dens` up to 20 for example, costs more, and it isn't total device
@@ -16,10 +16,12 @@ CPU or a worst-case sweep.
 
 ## Playing it
 
-Choose **Grains** on an instrument track, then load a sample (Shift + the
-Sample key). One sample plays across the keyboard, as on the stock sampler:
-the sample's root key plays it as recorded. Grains reads the whole sample:
-pos, scan and spry choose where its grains read, so it needs no trim.
+Choose **Grains** on an instrument track and it opens with a sample loaded:
+**wane**, six seconds of a held C from [Wane](https://github.com/mmockett/OP-XY-Hexagon/tree/main/wane),
+so the track plays straight away. Load your own over it with Shift + the Sample
+key. One sample plays across the keyboard, as on the stock sampler: the
+sample's root key plays it as recorded. Grains reads the whole sample: pos,
+scan and spry choose where its grains read, so it needs no trim.
 
 | Page 1 | | Page 2 | |
 | --- | --- | --- | --- |
@@ -40,10 +42,28 @@ out over about 6 ms. Each grain's level is set as it starts, so fewer grains
 play louder without the ones already sounding jumping. The screen still shows
 dens's own count.
 
+## The sample
+
+`samples/wane.wav` is Wane rendered on the host through its own engine: a held
+C4 (261.6 Hz) with the octave above it at 0.4, on Worn-like tape (shape swept
+0.28 to 0.72 and back once, detune 0.35, drift 0.3, warmth 0.35, wow 0.25,
+flutter 0.15, sag 0.3, age 0.15). It is six seconds, 16-bit mono at 44.1 kHz
+(517 KiB), peaking at -6 dBFS so Grains' busiest init sound stays under its
+output ceiling, and its end crossfades into its start, so a scan wraps without
+a seam. Its region roots it at middle C, which plays it as recorded.
+
+The build installs it once as `/content/samples/grains/wane.wav`, in the
+OP-XY's own storage rather than the module memory; the OP-XY loads it into its
+sample memory when a preset naming it is loaded, as it loads any sample. The
+init preset (`presets/default.json`) and every preset below name it, each
+keeping its own controls. `tools/make_presets.py` writes those regions and the
+init preset; run it after changing the sample, the defaults or a preset.
+
 ## Presets
 
-Six presets, each made to play on whatever sample is loaded. A preset brings no sample
-of its own, so with none on the track Grains stays silent and the screen says how to load one:
+Six presets, each opening on the wane sample and made to play on whatever sample is
+loaded after it. With no sample on the track Grains stays silent and the screen says
+how to load one:
 
 | Preset | What it is | How it's set |
 | --- | --- | --- |
@@ -60,18 +80,22 @@ Where the sample's own character sits matters most, so try `pos` first.
 
 Grains is a sample engine on the stock sample page (page 2) that plays like the
 sampler and draws its own screen, using [Open-XY](https://github.com/etcetc000/open-xy)
-SDK 1.8's sample engines with their own screen and the sample's overview:
+SDK 1.8's sample engines with their own screen and the sample's overview. Its own
+sample needs SDK 1.10's `samples` (a sample engine shipping samples its presets
+load), which is still in review: build against the branch that has it.
 
 ```sh
-git clone -b staging https://github.com/etcetc000/open-xy ../open-xy
+git clone -b sdk/machine-samples https://github.com/mmockett/open-xy ../open-xy
 python ../open-xy/sdk.py test --machine . --cxx clang++ --host-cxx g++
 python ../open-xy/sdk.py build --machine . --stock-os <your stock-1.2.1>/os.ldr --out <folder outside this checkout>
 ```
 
 Then install the build's `candidate/` files as the SDK's
 [build guide](https://github.com/etcetc000/open-xy/blob/staging/docs/build.md#5-install)
-describes. Command-line builds carry no presets; the OP-XY lists Grains once
-`content/presets/grains/` holds one, and this repository's are in `presets/`.
+describes, including `content/presets/grains/` (the init preset and the six)
+and `content/samples/grains/wane.wav`. Without the sample on the device, a
+preset opens with no sample loaded, as before. The browser builder doesn't
+install a machine's own samples yet, so use `sdk.py build`.
 
 ## Develop
 
@@ -79,7 +103,10 @@ describes. Command-line builds carry no presets; the OP-XY lists Grains once
   (`tools/gen_tables.py` writes them).
 - `display.cpp`: the screen ([docs/SCREEN.md](docs/SCREEN.md)), its artwork in
   `panel.svg.fragment` (`tools/make_panel.py` writes it).
-- `tests/sound.cpp`: the engine's sound tests, which `sdk.py test` runs.
+- `tests/sound.cpp`: the engine's sound tests, which `sdk.py test` runs,
+  including the init sound and every preset on the shipped sample.
+- `samples/wane.wav` and `tools/make_presets.py`: the shipped sample and the
+  presets' regions naming it.
 
 Sample engines have no browser preview of their own. `docs/screen/preview.png`
 was rendered by running `display.cpp` through a stand-in synth with the same
