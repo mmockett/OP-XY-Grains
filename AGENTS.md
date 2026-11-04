@@ -3,6 +3,8 @@
 This repository holds Grains (`grains`). The machine is at the repository root.
 Read README.md and use the [Open-XY SDK](https://github.com/etcetc000/open-xy)
 on `staging`, normally checked out beside this repository as `../open-xy`.
+Until the `samples` field (a sample engine's own samples) merges upstream, use
+`staging` with that change on top: mmockett/open-xy `sdk/machine-samples-v2`.
 Adjust that path if the user already has the SDK elsewhere.
 
 1. Read the [machine API](https://github.com/etcetc000/open-xy/blob/staging/docs/api.md),

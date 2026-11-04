@@ -1,26 +1,31 @@
 # Grains
 
-A granular sample synth for the OP-XY. Load a sample and play it across the
-keyboard: grains read around a position that can scan through it, stack into
+A granular sample synth for the OP-XY. It opens with a sample of its own;
+load yours and play it across the keyboard: grains read around a position that can scan through it, stack into
 chords and spread across the stereo field, and the screen shows each grain
 where it reads and at what pitch.
 
-![Grains' screen: no sample loaded, at rest, while a note plays, and with a minor chord](docs/screen/preview.png)
+![Grains' screen in six states: no sample loaded; at rest; a note held, pos scanning; a minor chord with spry up, on page 2; Shift held on a trimmed sample, showing start, window, gain and end; and a note held on the trimmed sample, its grains reading between the markers](docs/screen/preview.png)
 
 **Status: experimental.** Grains plays on an OP-XY running OS 1.2.1 and targets
-Open-XY SDK 1.10. Its render callback measures 3.067% of the stock block
-budget on the device (v1.1.0, one capture of `opxy-sample-callback-v1`,
-graphics excluded). That measures its defaults only, so a preset or setting with
-more grains, `dens` up to 20 for example, costs more, and it isn't total device
-CPU or a worst-case sweep.
+Open-XY SDK 1.10. v1.2.0, with its own sample, Shift on the sampler's markers
+and gain, and a screen that follows the amp envelope, has been played on an
+OP-XY; its CPU capture on the device is still to come. v1.1.0's render callback
+measured 3.067% of the stock block budget on the device (one capture of
+`opxy-sample-callback-v1`, graphics excluded). That measures its defaults only,
+so a preset or setting with more grains, `dens` up to 20 for example, costs
+more, and it isn't total device CPU or a worst-case sweep.
 
-Grains is live in the [open-xy.com builder](https://open-xy.com/#preview/machines/grains),
-which installs `v1.1.0`, the version the Open-XY catalog pins.
+The [open-xy.com builder](https://open-xy.com/#preview/machines/grains)
+installs `v1.1.0`, the version the Open-XY catalog pins. v1.2.0 builds from
+source (below) until the SDK change it needs is part of the Open-XY SDK.
 
 ## Playing it
 
-Choose **Grains** on an instrument track, then load a sample (Shift + the
-Sample key). One sample plays across the keyboard, as on the stock sampler:
+Choose **Grains** on an instrument track and it opens with a sample loaded:
+**wane**, six seconds of a held C from [Wane](https://github.com/mmockett/OP-XY-Hexagon/tree/main/wane),
+so the track plays straight away. Load your own over it with Shift + the
+Sample key. One sample plays across the keyboard, as on the stock sampler:
 the sample's root key plays it as recorded. Grains reads between the
 sampler's start and end markers, the whole sample when it is newly loaded:
 pos, scan and spry choose where its grains read within them.
@@ -33,7 +38,10 @@ pos, scan and spry choose where its grains read within them.
 | **dens** | how many grains overlap, 1 to 20 (in sync mode, the division) | **mode** | cloud (random), sync (on the tempo's divisions) or osc (evenly overlapped); rcld, rsync and rosc play every grain backwards |
 
 Press any encoder to switch pages. The OP-XY's own envelopes, LFOs, filter and
-effects apply as for any instrument.
+effects apply as for any instrument. The screen follows the track's amp
+envelope: grains swell in over the attack, settle at the sustain and go on
+coming through the release, as long as the note sounds. As on stock, a larger
+attack or decay is longer, but a larger release is shorter.
 
 Holding Shift, the encoders edit the stock sampler's markers and gain
 instead, on either page, and the screen shows them:
@@ -95,28 +103,35 @@ how to load one:
 
 Where the sample's own character sits matters most, so try `pos` first.
 
-## The SDK it needs
+## Building
 
 Grains is a sample engine on the stock sample page (page 2) that plays like the
-sampler and draws its own screen, using [Open-XY](https://github.com/etcetc000/open-xy)
-SDK 1.8's sample engines with their own screen and the sample's overview, and
-SDK 1.10's `stockShift`, which hands Shift and the encoders back to the stock
-sampler's markers and gain. Showing the gain needs the sample overview's
-`gain`, from [etcetc000/open-xy#400](https://github.com/etcetc000/open-xy/pull/400),
-as well as `stockShift`:
+sampler and draws its own screen. It targets [Open-XY](https://github.com/etcetc000/open-xy)
+SDK 1.10, on the SDK's `staging` branch: sample engines with their own screen
+and the sample's overview with its gain, `stockShift`, which hands Shift and
+the encoders back to the stock sampler's markers and gain, and the track's amp
+envelope for the screen. Its own sample needs one more SDK change, still in
+review: `samples`, which lets a sample engine ship samples its presets load.
+Until it merges, build against the branch that adds it, `staging` with that
+change on top:
 
 ```sh
-git clone -b sdk/machine-samples https://github.com/mmockett/open-xy ../open-xy
+git clone -b sdk/machine-samples-v2 https://github.com/mmockett/open-xy ../open-xy
+python ../open-xy/sdk.py toolchain fetch
 python ../open-xy/sdk.py test --machine . --cxx clang++ --host-cxx g++
-python ../open-xy/sdk.py build --machine . --stock-os <your stock-1.2.1>/os.ldr --out <folder outside this checkout>
+python ../open-xy/sdk.py test --machine . --firmware
+python ../open-xy/sdk.py build --machine . --stock-os <your stock-1.2.1>/os.ldr \
+  --layout <the layout.json read from your OP-XY> --out <folder outside this checkout>
 ```
 
-Then install the build's `candidate/` files as the SDK's
+Pass the layout read from your OP-XY (`/layout.json`) with `--layout`, so
+machines keep their numbers and old projects open the machines they were made
+with. Then install the build's `candidate/` files as the SDK's
 [build guide](https://github.com/etcetc000/open-xy/blob/staging/docs/build.md#5-install)
 describes, including `content/presets/grains/` (the init preset and the six)
 and `content/samples/grains/wane.wav`. Without the sample on the device, a
-preset opens with no sample loaded, as before. The browser builder doesn't
-install a machine's own samples yet, so use `sdk.py build`.
+preset opens with no sample loaded. The browser builder doesn't install a
+machine's own samples yet, so use `sdk.py build`.
 
 ## Develop
 
@@ -133,10 +148,10 @@ install a machine's own samples yet, so use `sdk.py build`.
 - `amp_curve.h`: stock's amp envelope times and shapes, for the screen.
 
 Sample engines have no browser preview of their own. `docs/screen/preview.png`
-was rendered by running `display.cpp` through a stand-in synth with the same
-screen in the SDK's preview, at the OP-XY's 480 × 220 and in its screen font,
-Univers Next Pro Light
-([mmockett/OP-XY's renderer](https://github.com/mmockett/OP-XY/tree/main/tools/render)). Agent instructions are in [AGENTS.md](AGENTS.md).
+was rendered by running `display.cpp` frame by frame on the host, on the wane
+sample's overview, and drawing its frames over `panel.svg.fragment` at the
+OP-XY's 480 × 220, shown at 2×, in its screen font, Univers Next Pro Light.
+Agent instructions are in [AGENTS.md](AGENTS.md).
 
 ## Licence
 
