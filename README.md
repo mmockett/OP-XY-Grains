@@ -14,6 +14,9 @@ graphics excluded). That measures its defaults only, so a preset or setting with
 more grains, `dens` up to 20 for example, costs more, and it isn't total device
 CPU or a worst-case sweep.
 
+Grains is live in the [open-xy.com builder](https://open-xy.com/#preview/machines/grains),
+which installs `v1.1.0`, the version the Open-XY catalog pins.
+
 ## Playing it
 
 Choose **Grains** on an instrument track, then load a sample (Shift + the
