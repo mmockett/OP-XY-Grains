@@ -1,7 +1,8 @@
 // Grains' screen checks, compiled for the host and run by
-// python sdk.py test --machine <folder>: what Shift shows now that it edits the
-// stock sampler's markers (resources.stockShift), the markers on the strip, and
-// that every caption Shift's row can show fits its column on the device.
+// python sdk.py test --machine <folder>: the sample's waveform on the strip, the
+// swap hint Shift shows, what Shift shows now that it edits the stock sampler's
+// markers (resources.stockShift), the markers on the strip, and that every
+// caption Shift's row can show fits its column on the device.
 #include "../display.cpp"
 #include <algorithm>
 #include <cmath>
@@ -120,11 +121,12 @@ int main() {
             check(!std::strcmp(s.text(6), want), "the gain reads in stock's signed steps");
             const double w = caption_width(s.text(6), 20);
             check(w >= 0 && w <= 53, "the gain's caption fits 53 px");
-            double tallest = 0;
-            for (u32 h = 0; h < 2; ++h)
-                for (const opxy::draw::Point& q : s.frame.paths[h].points) tallest = std::fmax(tallest, std::fabs(q.y / 1024.0));
+            double tallest = 0;   // drawn px from the centre line
+            for (u32 h = 0; h < grains::Frame::path_count; ++h)
+                for (const opxy::draw::Point& q : s.frame.paths[h].points)
+                    tallest = std::fmax(tallest, std::fabs(q.y / 1024.0) * s.frame.nodes[h].scale / 1024.0);
             if (g % 10 == 0 && g <= 0) { check(tallest > last_ten + 0.2, "the waveform grows with the gain"); last_ten = tallest; }
-            check(tallest >= last && tallest * 2 <= 21, "the waveform never shrinks as the gain rises, and stays within 21 px a side");
+            check(tallest >= last && tallest <= 20.375, "the waveform never shrinks as the gain rises, and stays within 20 px a side (and its 3/8 px ribbon)");
             last = tallest;
         }
         // No gain known (gain_unavailable): its cell shows nothing, and the waveform is as at +0.
@@ -138,9 +140,110 @@ int main() {
         z.input.shift = 1;
         z.run(2);
         bool same = true;
-        for (u32 h = 0; h < 2; ++h)
+        for (u32 h = 0; h < grains::Frame::path_count; ++h)
             for (u32 i = 0; i < 64; ++i) same = same && u.frame.paths[h].points[i].y == z.frame.paths[h].points[i].y;
         check(same, "an unknown gain leaves the waveform as at +0");
+    }
+    {   // The waveform: 60 columns across the strip, each from its stretch of
+        // the overview's 96 bins, its high above the centre line and its low
+        // below, each drawn to its own height, as a sampler draws a sample; every
+        // path a thin closed ribbon the device draws cleanly (distinct
+        // neighbours, within 64 px, no hairpin turns, area, no crossing).
+        overview.gain = 0;
+        for (u32 b = 0; b < 96; ++b) { overview.high[b] = 2000; overview.low[b] = -2000; }
+        overview.high[50] = 32767; overview.low[50] = -8192;   // a hit, lopsided
+        overview.generation = 7;
+        Screen s;
+        s.run();
+        const double pitch = 432.0 / 60;   // bin 50 is in column 31 (bins 49.6 .. 51.2)
+        double top_x = 0, top = 0, bottom50 = 0, quiet = 1e9;
+        for (u32 h = 0; h < grains::Frame::path_count; ++h) {
+            const opxy::draw::Node& n = s.frame.nodes[h];
+            check(n.scale == 1024, "the waveform is drawn 1:1");
+            const auto& pts = s.frame.paths[h].points;
+            double sharpest = 180, area = 0;
+            for (u32 i = 0; i < 64; ++i) {
+                const opxy::draw::Point &a = pts[i], &b = pts[(i + 1) % 64], &c = pts[(i + 2) % 64];
+                const double x = (n.x + a.x) / 1024.0, y = a.y / 1024.0;
+                if (i < 32) {   // out along the zigzag
+                    if (-y > top) { top = -y; top_x = x; }
+                    if (std::fabs(x - (24 + pitch * 31.75)) < 0.01) bottom50 = y;
+                    if (i % 2 == 1 && i < 31) quiet = std::fmin(quiet, std::fabs(y));   // each column's high
+                    // Back 3/8 px below, point for point: a ribbon that can't cross itself.
+                    check(pts[63 - i].x == a.x && pts[63 - i].y == a.y + 384, "the outline comes back 3/8 px below the zigzag");
+                }
+                check(std::abs(a.x) <= 64 * 1024 && std::abs(a.y) <= 64 * 1024, "waveform points stay within 64 px");
+                check(std::max(std::abs(a.x - b.x), std::abs(a.y - b.y)) >= 256, "waveform neighbours and ends stay 1/4 px apart");
+                const double ux = b.x - a.x, uy = b.y - a.y, vx = c.x - b.x, vy = c.y - b.y, dot = ux * vx + uy * vy;
+                if (dot < 0) sharpest = std::fmin(sharpest, std::atan2(std::fabs(ux * vy - uy * vx), -dot) * 180 / M_PI);
+                area += (double(a.x) * b.y - double(b.x) * a.y) / (1024.0 * 1024.0) / 2;
+            }
+            check(sharpest > 2.5, "no waveform turn is sharper than the device's 2.5 degrees");
+            check(std::fabs(area) > 30, "each waveform path has real area");
+        }
+        check(std::fabs(top_x - (24 + pitch * 31.25)) < 0.01, "the loudest bin peaks in its own column");
+        check(std::fabs(top - 13) < 0.1, "a full-scale peak stands 13 px at +0");
+        check(bottom50 > 4.2 && bottom50 < 5.0, "the column's low (-12 dB) is drawn to its own, smaller depth, 4.6 px");
+        check(quiet > 1.4 && quiet < 1.8, "a quiet bin (-24 dB) still stands 1.6 px, twice what a straight scale draws");
+        // Still while nothing changes; rebuilt only for a new sample.
+        grains::Frame before = s.frame;
+        s.run(30);
+        check(!std::memcmp(&before, &s.frame, sizeof before), "at rest no node, path or text changes");
+        s.input.note_serial = 1; s.input.held_notes = 1;
+        s.run(1);
+        before = s.frame;
+        s.run(60);
+        bool same_paths = true;
+        for (u32 h = 0; h < grains::Frame::path_count; ++h)
+            same_paths = same_paths && s.frame.paths[h].key == before.paths[h].key &&
+                         !std::memcmp(&s.frame.paths[h].points, &before.paths[h].points, sizeof before.paths[h].points);
+        check(same_paths, "the waveform isn't rebuilt while a note plays");
+        overview.generation = 8; overview.high[50] = 2000;
+        s.run(1);
+        check(s.frame.paths[2].key != before.paths[2].key, "a new sample rebuilds the waveform");
+        // Before the overview is read: the flat stand-in.
+        overview.loaded = 0;
+        Screen f;
+        f.run(2);
+        double flat = 0;
+        for (u32 h = 0; h < grains::Frame::path_count; ++h)
+            for (const opxy::draw::Point& q : f.frame.paths[h].points) flat = std::fmax(flat, std::fabs(q.y / 1024.0));
+        check(flat == 0.75 + 0.375, "a sample still loading shows the flat stand-in, 0.75 px either side and its ribbon");
+        overview.loaded = 1;
+        overview.generation = 1;
+        for (u32 b = 0; b < 96; ++b) { const opxy::i16 peak = opxy::i16((40 + (b * 37) % 200) << 7); overview.high[b] = peak; overview.low[b] = opxy::i16(-peak); }
+    }
+    {   // The swap hint: hidden (its cover placed) until Shift is held on a
+        // loaded sample, then shown (its cover hidden), and nothing else of the
+        // stage moves for it.
+        Screen s;
+        s.run();
+        check(s.shown(grains::swap_cover), "no swap hint without Shift");
+        s.input.shift = 1;
+        s.run(1);
+        check(!s.shown(grains::swap_cover), "Shift shows the swap hint on a loaded sample");
+        s.run();
+        grains::Frame held = s.frame;
+        s.run(30);
+        check(!std::memcmp(&held.nodes, &s.frame.nodes, sizeof held.nodes), "the hint holds still while Shift stays down");
+        s.input.shift = 0;
+        s.run(1);
+        check(s.shown(grains::swap_cover), "letting Shift go hides the swap hint");
+        s.input.reduced_motion = 1;
+        s.input.shift = 1;
+        s.run(1);
+        check(!s.shown(grains::swap_cover), "reduced motion shows the hint just the same");
+        overview.loaded = 0;
+        Screen l;
+        l.input.shift = 1;
+        l.run();
+        check(l.shown(grains::swap_cover), "no swap hint while the sample is still loading");
+        overview.assigned = 0;
+        Screen e;
+        e.input.shift = 1;
+        e.run();
+        check(e.shown(grains::swap_cover), "no swap hint over the empty state's own load hint");
+        overview.assigned = overview.loaded = 1;
     }
     {   // No sample: Shift's row shows no times, and nothing is drawn on the stage.
         overview.assigned = overview.loaded = 0;
@@ -240,6 +343,6 @@ int main() {
                     after[0], after[1], after[2], longer, shorter, brightest(fast), brightest(slow));
     }
     if (failures) return 1;
-    std::printf("screen: Shift's markers and row checked\n");
+    std::printf("screen: the waveform, the swap hint, Shift's markers and row checked\n");
     return 0;
 }

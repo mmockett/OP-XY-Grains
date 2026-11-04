@@ -3,9 +3,9 @@
 A granular sample synth for the OP-XY. It opens with a sample of its own;
 load yours and play it across the keyboard: grains read around a position that can scan through it, stack into
 chords and spread across the stereo field, and the screen shows each grain
-where it reads and at what pitch.
+where it reads and at what pitch, over the sample's own waveform.
 
-![Grains' screen in six states: no sample loaded; at rest; a note held, pos scanning; a minor chord with spry up, on page 2; Shift held on a trimmed sample, showing start, window, gain and end; and a note held on the trimmed sample, its grains reading between the markers](docs/screen/preview.png)
+![Grains' screen in six states: no sample loaded; at rest; a note held, pos scanning; a minor chord with spry up, on page 2; Shift held on a trimmed sample, showing start, window, gain and end and the hint to swap the sample; and a note held on the trimmed sample, its grains reading between the markers](docs/screen/preview.png)
 
 **Status: experimental.** Grains plays on an OP-XY running OS 1.2.1 and targets
 Open-XY SDK 1.10. v1.2.0, with its own sample, Shift on the sampler's markers
@@ -52,6 +52,10 @@ instead, on either page, and the screen shows them:
 | encoder 2 | **window**: start and end together, keeping the length between them | both markers slide; the length |
 | encoder 3 | **gain**: the sample's gain, in stock's steps from -30 to +20 | the strip's waveform grows and shrinks, twice as tall each 10 steps up; `+0`, `-12`, `+20` (blank while no gain is known) |
 | encoder 4 | **end**: where grains stop reading | the end marker; its time in the sample |
+
+While Shift is held, a small hint above the waveform's right end reads
+**swap**, **shift +** and the Sample key's icon: Shift + the Sample key loads
+another sample in place of this one.
 
 Trim to the stretch that matters and pos, scan and spry range over it alone:
 pos at 0 sits on the start marker, and a scan wraps from end back to start.
@@ -139,16 +143,18 @@ machine's own samples yet, so use `sdk.py build`.
   (`tools/gen_tables.py` writes them).
 - `display.cpp`: the screen ([docs/SCREEN.md](docs/SCREEN.md)), its artwork in
   `panel.svg.fragment` (`tools/make_panel.py` writes it).
-- `tests/sound.cpp`: the engine's sound tests, and `tests/screen.cpp`, Shift's
-  markers and captions, the gain's every step and its width, a blank cell for
-  an unknown gain, and the waveform growing with the gain, and that grains
+- `tests/sound.cpp`: the engine's sound tests, and `tests/screen.cpp`, the
+  waveform (its columns, heights and device-safe outline, rebuilt only for a
+  new sample or gain), the swap hint, Shift's markers and captions, the
+  gain's every step and its width, a blank cell for an unknown gain, and the
+  waveform growing with the gain, and that grains
   follow the amp envelope (gone at release when it's unknown or short, still
   coming in a long release, gone sooner for a larger release, dimmer early in
   a slow attack); `sdk.py test` runs both.
 - `amp_curve.h`: stock's amp envelope times and shapes, for the screen.
 
 Sample engines have no browser preview of their own. `docs/screen/preview.png`
-was rendered by running `display.cpp` frame by frame on the host, on the wane
+and `docs/screen/cloud.png` were rendered by running `display.cpp` frame by frame on the host, on the wane
 sample's overview, and drawing its frames over `panel.svg.fragment` at the
 OP-XY's 480 × 220, shown at 2×, in its screen font, Univers Next Pro Light.
 Agent instructions are in [AGENTS.md](AGENTS.md).

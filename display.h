@@ -3,14 +3,18 @@
 
 namespace grains {
 // Matches resources.display: paths, points, nodes, texts, palette (docs/SCREEN.md).
-using Frame = opxy::draw::Frame<2, 64, 52, 16, 16>;
+using Frame = opxy::draw::Frame<4, 64, 56, 16, 16>;
 
-// Nodes: the strip's two halves (the paths), the header's bar, then the marks.
-const opxy::u32 header_first = 2, pos_node = 10, scan_arrow = 11, window_rise = 12, scan_frozen = 13,
-                spray_first = 14, lane_first = 16, lane_count = 4, window_fall = 20, grain_first = 21, grain_shown = 8,
-                cover_stage = 45, cover_hint = 46,   // with no sample: the stage hidden, the hint shown
-                octave_first = 47,                   // the root, +1 and +2 octave lanes
-                trim_first = 50;                     // the stock sampler's start and end markers (Shift)
+// Nodes: the strip's waveform (the four paths, 15 columns each), the header's
+// bar, then the marks.
+const opxy::u32 strip_first = 0, strip_paths = 4,
+                header_first = 4, pos_node = 12, scan_arrow = 13, window_rise = 14, scan_frozen = 15,
+                spray_first = 16, lane_first = 18, lane_count = 4, window_fall = 22, grain_first = 23, grain_shown = 8,
+                cover_stage = 47, cover_hint = 48,   // with no sample: the stage hidden, the hint shown
+                octave_first = 49,                   // the root, +1 and +2 octave lanes
+                trim_first = 52,                     // the stock sampler's start and end markers (Shift)
+                swap_cover = 54,                     // hides the swap hint unless Shift is held on a loaded sample
+                centre_line = 55;                    // the strip's faint centre line
 // Grains are dashes of three authored lengths (6, 16 and 40 px), eight of each.
 const opxy::u32 dash_lengths = 3;
 

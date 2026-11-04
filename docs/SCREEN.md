@@ -1,9 +1,11 @@
 # The screen
 
 Grains shows its grains as a cloud: each grain where in the sample it reads
-(across) and at what pitch (up), over the sample's strip with the read position
-marked. [screen/cloud.png](screen/cloud.png) shows four states at 2×;
-[screen/cloud.html](screen/cloud.html) draws them.
+(across) and at what pitch (up), over the sample's waveform with the read
+position marked. [screen/cloud.png](screen/cloud.png) shows four states at 2×,
+rendered from `display.cpp` like [screen/preview.png](screen/preview.png);
+[screen/cloud.html](screen/cloud.html) is the first design sketch they came
+from, with its strip still the old envelope.
 
 It covers the stock sampler's page (SDK 1.8's own screen) and draws the sample
 from its overview.
@@ -17,16 +19,24 @@ and [display API](https://github.com/etcetc000/open-xy/blob/staging/docs/display
 | --- | --- | --- |
 | Header | 0 to 38 | The SDK's two-page header (`opxy/page_header.hpp`): page 1 **pos scan size dens**, page 2 **spry chrd shpe mode** |
 | Cloud | 54 to 150 | Lanes from the root (150) to +2 octaves (54), one octave per 48 px |
-| Strip | 167 to 205 | The sample's overview, centred at 186 |
+| Strip | 166 to 206 | The sample's waveform, centred at 186, at most 20 px a side; the swap hint above its right end (y 151 to 165) while Shift is held |
 
 The cloud and the strip share the sample's span, x 24 to 456, so a grain sits
 straight above the stretch of sample it reads.
 
 ## Parts
 
-- **Strip** (path 0): the sample's amplitude as one closed 64-point ribbon,
-  32 bins out along the top and back along the bottom. Dim at rest, brighter
-  while a note plays.
+- **Strip** (paths 0 to 3, `sample_view::place_waveform`): the sample's
+  waveform as a sampler draws it, 60 columns across, each from its 1.6 of the
+  overview's 96 bins: a line zigzags from each column's high, above the centre
+  line, to its low, below it, so a hit stands out as a spike and a held sound
+  as a dense band. Heights follow the level to the power 0.75 (a full-scale
+  peak 13 px at +0, a -24 dB one 1.6 px rather than 0.8), and a silent column
+  keeps 0.75 px a side. Each path holds 15 columns as a thin closed ribbon:
+  out along the zigzag and back 3/8 px below it, so it never crosses itself
+  and always has area, and its sharpest turn is about 8°. A faint centre line
+  (node 55) runs under it. Dim at rest, brighter while a note plays. Before a
+  sample's overview is read it is flat, the same zigzag at 0.75 px.
 - **pos**: a bright vertical line through the strip.
 - **scan**: an arrow off the top of the pos line, pointing the way it moves,
   longer when faster. At 0 (frozen) a short cap instead.
@@ -44,6 +54,13 @@ straight above the stretch of sample it reads.
   peak down to feet 48 px apart on the screen's bottom edge. The peak slides
   from the right (0, a swell) to the left (100, a pluck), where the engine
   puts it.
+- **Swap hint** (`sample_view::place_swap_hint`): while Shift is held on a
+  loaded sample, "swap", "shift +" and the Sample key's icon above the
+  strip's right end, at 11 px in the empty state's shades (#CBCBCB, #7D7D7D),
+  the key 13 px with three of its bars. The words and icon are static
+  artwork; node 54, a box in the background drawn just after them, covers
+  them the rest of the time, so Shift's edges move one node. It stops short
+  of the end marker's flag, and the strip and marks draw over it.
 - **Start and end** (Shift + encoders 1, 2 and 4, the stock sampler's
   markers): a bar each on the strip, a flag at its top pointing into the part
   grains read. Shown bright while Shift is held, and a step dimmer whenever
@@ -87,12 +104,17 @@ slots):
 | Part | Uses |
 | --- | --- |
 | Header | 8 bar nodes and all 16 text slots |
-| Strip | path 0 |
+| Strip | 4 paths (15 columns each, 64 points), the centre line |
+| Swap hint | 1 node (its cover) |
 | pos, scan, spry | 5 nodes (line, arrow, cap, a pair of dotted lines) |
 | shpe | 2 nodes (the window's edges, sharing the peak as their pivot) |
 | Lanes | 7 nodes (3 octaves, up to 4 chord notes) and 3 static labels |
 | Grains | 24 nodes, the most grains shown at once; dashes in 3 authored lengths for short, medium and long sizes, scaled within each (a node scales uniformly, at most 2×) |
 | Start and end | 2 nodes |
 
-52 nodes and 2 paths, leaving room for later parts. Lane labels are static
+56 nodes and 4 paths, leaving room for later parts. The waveform and swap
+hint sit in their own block at the top of `display.cpp` (`sample view (to be
+shared)`), written to be shared with the other sample engines: they take
+their place, size, shades and nodes as arguments and use only
+`SampleOverview` and the frame API. Lane labels are static
 `<text>` in the device font; the header takes every text slot.

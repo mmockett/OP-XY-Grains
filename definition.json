@@ -118,9 +118,9 @@
     "display": {
       "stateBytes": 132,
       "stateAlignment": 4,
-      "paths": 2,
+      "paths": 4,
       "points": 64,
-      "nodes": 52,
+      "nodes": 56,
       "texts": 16,
       "palette": 16
     }
