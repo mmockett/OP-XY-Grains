@@ -3,6 +3,7 @@
 // stock sampler's markers (resources.stockShift), the markers on the strip, and
 // that every caption Shift's row can show fits its column on the device.
 #include "../display.cpp"
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
@@ -62,6 +63,10 @@ struct Screen {
 };
 }
 const opxy::draw::SampleOverview* opxy_sample_overview() { return &overview; }
+namespace {
+// At rest the screen shows one still grain per chord note at pos (one, chrd off).
+u32 lane_count_at_rest(const Screen&) { return 1; }
+}
 
 int main() {
     overview.assigned = overview.loaded = 1;
@@ -172,6 +177,50 @@ int main() {
             if (t) widest_title = std::fmax(widest_title, caption_width(t, 10));
         check(widest_title <= 56, "Shift's titles fit 56 px at 10 px");
         std::printf("Shift's captions: the widest value %.1f of 53 px, the widest title %.1f of 56 px\n", widest, widest_title);
+    }
+    {   // The amp envelope (input.amp, SDK 1.10): grains last as long as the sound.
+        // Unknown, they go as the note is let go, as before; with a short
+        // release, at once; with a long one, they keep coming, dimming, and stop
+        // once it's over. A long attack swells them in: dimmer early on.
+        overview.frames = 4 * 44100; overview.begin = 0; overview.end = overview.frames;
+        auto grains_shown = [](const Screen& s) {
+            u32 n = 0;
+            for (u32 i = 0; i < grains::dash_lengths * grains::grain_shown; ++i) n += s.shown(grains::grain_first + i);
+            return n;
+        };
+        auto brightest = [](const Screen& s) {
+            u32 b = 0;
+            for (u32 i = 0; i < grains::dash_lengths * grains::grain_shown; ++i)
+                if (s.shown(grains::grain_first + i)) b = std::max<u32>(b, s.frame.nodes[grains::grain_first + i].shade);
+            return b;
+        };
+        const i32 unknown = opxy::draw::envelope_unavailable;
+        const opxy::draw::Envelope envelopes[3] = {{unknown, unknown, unknown, unknown}, {0, 0, 0x7fffffff, 0}, {0, 0, 0x7fffffff, at(0.8)}};
+        u32 after[3];
+        for (u32 e = 0; e < 3; ++e) {
+            Screen s;
+            s.input.amp = envelopes[e];
+            s.run(2);
+            s.input.note_serial = 1; s.input.held_notes = 1;
+            s.run(60);
+            check(grains_shown(s) > 0, "grains play while a note is held");
+            s.input.held_notes = 0; s.input.note_off_serial = 1;
+            s.run(30);   // half a second after the release
+            after[e] = grains_shown(s);
+            if (e == 2) {
+                s.run(60 * 12);   // past the longest release
+                check(grains_shown(s) == lane_count_at_rest(s), "once the release is over, the screen is at rest");
+            }
+        }
+        check(after[0] == after[1], "an unknown envelope lets the grains go as a short release does");
+        check(after[2] > after[1], "a long release keeps grains coming after the note is let go");
+        Screen fast, slow;
+        fast.input.amp = {0, 0, 0x7fffffff, 0};
+        slow.input.amp = {at(0.8), 0, 0x7fffffff, 0};
+        for (Screen* s : {&fast, &slow}) { s->run(2); s->input.note_serial = 1; s->input.held_notes = 1; s->run(20); }
+        check(brightest(slow) < brightest(fast), "a long attack swells the grains in");
+        std::printf("envelope: grains half a second after release: %u unknown, %u short, %u long; brightest after 1/3 s: %u fast, %u slow attack\n",
+                    after[0], after[1], after[2], brightest(fast), brightest(slow));
     }
     if (failures) return 1;
     std::printf("screen: Shift's markers and row checked\n");

@@ -62,6 +62,14 @@ straight above the stretch of sample it reads.
   of where a note will read.
 - **While a note is held** grains appear, brighten and fade with their windows,
   and pos's line moves with scan. Only what audio does moves.
+- **The amp envelope** (SDK 1.10): grains go on coming while the note sounds,
+  held or in its release, as bright as the track's stock amp envelope lets
+  them: they swell in over the attack, settle at the sustain and fade over the
+  release, and stop once it's over. With the envelope unknown they go as the
+  note is let go, as before. Stock's times for the envelope page's positions
+  aren't documented; the screen assumes them exponential, 2 ms at 0 to about
+  10 s at full (1.9 s at 0.8), for attack, decay and release alike, and the
+  sustain a level, until they are timed on the device.
 - A control turned snaps its mark at once (pos, spry, the lanes for chrd); the
   header follows the SDK helper's 0.15 s page switch. Reduced motion shows the
   end state.

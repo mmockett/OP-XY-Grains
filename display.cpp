@@ -7,6 +7,42 @@
 
 namespace grains {
 namespace {
+// The track's amp envelope as the screen follows it (SDK 1.10, input.amp),
+// so the note's motion lasts as long as its sound: a level that swells over
+// the attack, falls over the decay to the sustain while a note is held, and
+// fades over the release from wherever it was. Stock maps the envelope page's
+// positions to times along its own curves, which aren't documented: assumed
+// here exponential in the position, 2 ms at 0 to 10 s at full, for attack,
+// decay and release alike, and the sustain a level, linear. With the envelope
+// unknown, or reduced motion, the level is 1 while a note is held and 0
+// otherwise, as before.
+inline opxy::u32 stage_ms(opxy::i32 position) {
+    const opxy::u32 p = position < 0 ? 0 : opxy::u32(position) >> 15;   // Q16
+    opxy::u32 l = ((p >> 4) * 3146) >> 4;   // 12.29 p, Q16: log2(5000) octaves at full
+    const opxy::u32 whole = l >> 16, m = 65536 + (l & 0xffff);
+    const opxy::u32 ms = (m << whole) >> 15;   // 2 ms * 2^l, by Mitchell's approximation
+    return ms < 2 ? 2 : ms;
+}
+inline void follow(Swell& s, const opxy::draw::Envelope& amp, bool held, bool started, bool still, opxy::u32 ms) {
+    if (still || !opxy::draw::envelope_known(amp)) { s.level = held ? 65536 : 0; s.stage = held ? 2 : 0; return; }
+    if (held && (started || s.stage == 0 || s.stage == 3)) s.stage = 1;
+    if (held) {
+        const opxy::u32 sustain = opxy::u32(amp.sustain < 0 ? 0 : amp.sustain) >> 15;
+        if (s.stage == 1) {
+            s.level += 65536 * ms / stage_ms(amp.attack);
+            if (s.level >= 65536) { s.level = 65536; s.stage = 2; }
+        } else {
+            const opxy::u32 step = (65536 - sustain) * ms / stage_ms(amp.decay);
+            s.level = s.level > sustain + step ? s.level - step : sustain;
+        }
+    } else if (s.stage) {
+        if (s.stage != 3) { s.stage = 3; s.from = s.level; }
+        const opxy::u32 step = s.from * ms / stage_ms(amp.release) + 1;
+        s.level = s.level > step ? s.level - step : 0;
+        if (!s.level) s.stage = 0;
+    }
+}
+
 using namespace opxy::draw;
 using opxy::i32;
 using opxy::u32;
@@ -338,7 +374,8 @@ void place_grains(DisplayState& state, const Input& input, Frame& frame, const S
             if (!g.life) { hide(frame, node); continue; }
             // Brightest at its window's peak: dim to bright to dim, as shpe shapes it.
             const u32 peak = u32(g.life) * window_peak(input.slots[kShpe]) >> 16;
-            shade = 3 + (g.age < peak ? u32(g.age) * 11 / peak : u32(g.life - g.age) * 11 / (g.life - peak));
+            const u32 window = g.age < peak ? u32(g.age) * 11 / peak : u32(g.life - g.age) * 11 / (g.life - peak);
+            shade = 3 + ((window * state.swell.level + 32768) >> 16);   // as loud as the envelope lets it
         }
         const u32 note = lane_notes[chord][g.note % lane_counts[chord]];
         i32 y = root_y - i32(note) * semitone_px;
@@ -359,6 +396,7 @@ inline void display_reset(DisplayState& state) {
     state.random = 0x2545f491u;
     state.spawned = 0;
     state.track = ~0u;
+    state.swell = Swell{0, 0, 0};
 }
 
 inline void display(DisplayState& state, const Input& input, Frame& frame) {
@@ -385,7 +423,8 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     const char* const titles[8] = {own[0], own[1], own[2], own[3], own[4], own[5], own[6], own[7]};
     page_header(state.header, input, frame, titles, values, header_first, pages);
 
-    // A track change starts afresh; grains move only while a note is held.
+    // A track change starts afresh; grains move only while a note sounds:
+    // held, or in its amp envelope's release.
     if (state.track != input.track) {
         for (u32 i = 0; i < grain_shown; ++i) state.grains[i].life = 0;
         state.scan = 0;
@@ -394,9 +433,11 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     const NoteEvents events = state.notes.update(input);
     const bool held = input.held_notes != 0 && input.held_notes <= 128;
     if (events.hold_started) { state.scan = 0; state.next = 0; state.spawned = 0; }
-    const bool moving = held && !input.reduced_motion;
+    const u32 ms = u32(clamp(input.elapsed, 0, 102)) * 1000 >> 10;
+    follow(state.swell, input.amp, held, events.hold_started, input.reduced_motion != 0, ms);
+    const bool sounding = held || state.swell.level;
+    const bool moving = sounding && !input.reduced_motion;
     if (moving) {
-        const u32 ms = u32(clamp(input.elapsed, 0, 102)) * 1000 >> 10;
         // The scan moves the read point on at its rate, through the part played.
         const i32 rate = scan_rate(input.slots[kScan]);
         state.scan += u32(rate / i32(sample.span_ms) * i32(ms));
@@ -412,7 +453,7 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
             spawn(state, input);
             state.next = interval_ms(state, input);
         }
-    } else if (!held) {
+    } else if (!sounding) {
         for (u32 i = 0; i < grain_shown; ++i) state.grains[i].life = 0;
     }
 
@@ -430,8 +471,8 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     hide(frame, cover_stage);
     place(frame, cover_hint, 0, 0, unit, 0, fill_and_stroke);
     for (u32 i = 0; i < 3; ++i) place(frame, octave_first + i, 0, 0, unit, octave, stroke);
-    place_strip(frame, sample, held);
-    place_marks(frame, input, sample, moving ? state.scan : 0, held);
+    place_strip(frame, sample, sounding);
+    place_marks(frame, input, sample, moving ? state.scan : 0, sounding);
     place_lanes(frame, chord);
     place_grains(state, input, frame, sample, moving);
     place_trim(frame, sample, input.shift != 0);

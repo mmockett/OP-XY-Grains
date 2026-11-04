@@ -18,6 +18,9 @@ const opxy::u32 dash_lengths = 3;
 // A grain on screen; life 0 when none. drift: its pitch off its lane, in pixels (spry's jitter).
 struct ShownGrain { opxy::u16 age, life; opxy::u16 position; opxy::u8 note; signed char drift; };
 
+// The amp envelope's level as the screen follows it (display.cpp, follow()).
+struct Swell { opxy::u32 level, from, stage; };   // level and from (the release's start) Q16; stage 0 idle, 1 attack, 2 decay, 3 release
+
 struct DisplayState {
     opxy::draw::PageHeader header;
     opxy::draw::NoteTracker notes;
@@ -27,5 +30,6 @@ struct DisplayState {
     opxy::u32 random;
     opxy::u32 spawned;
     opxy::u32 track;
+    Swell swell;             // the amp envelope's level: grains swell, hold and fade with it
 };
 }

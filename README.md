@@ -106,7 +106,9 @@ describes. Command-line builds carry no presets; the OP-XY lists Grains once
   `panel.svg.fragment` (`tools/make_panel.py` writes it).
 - `tests/sound.cpp`: the engine's sound tests, and `tests/screen.cpp`, Shift's
   markers and captions, the gain's every step and its width, a blank cell for
-  an unknown gain, and the waveform growing with the gain; `sdk.py test` runs
+  an unknown gain, and the waveform growing with the gain, and that grains
+  follow the amp envelope (gone at release when it's unknown or short, still
+  coming in a long release, dimmer early in a slow attack); `sdk.py test` runs
   both.
 
 Sample engines have no browser preview of their own. `docs/screen/preview.png`
