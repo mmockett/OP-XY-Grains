@@ -66,10 +66,12 @@ straight above the stretch of sample it reads.
   held or in its release, as bright as the track's stock amp envelope lets
   them: they swell in over the attack, settle at the sustain and fade over the
   release, and stop once it's over. With the envelope unknown they go as the
-  note is let go, as before. Stock's times for the envelope page's positions
-  aren't documented; the screen assumes them exponential, 2 ms at 0 to about
-  10 s at full (1.9 s at 0.8), for attack, decay and release alike, and the
-  sustain a level, until they are timed on the device.
+  note is let go, as before. The times and shapes are stock's: a larger
+  attack or decay is a longer stage, but a larger release is a shorter one
+  (about 6 ms at 100, near a minute to silence at 0, 3 s at 50). The attack
+  rises fast and slows toward its top, the decay falls exponentially to the
+  sustain, a plain level, and the release fades exponentially from wherever it
+  was (`amp_curve.h`).
 - A control turned snaps its mark at once (pos, spry, the lanes for chrd); the
   header follows the SDK helper's 0.15 s page switch. Reduced motion shows the
   end state.

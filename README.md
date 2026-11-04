@@ -128,8 +128,9 @@ install a machine's own samples yet, so use `sdk.py build`.
   markers and captions, the gain's every step and its width, a blank cell for
   an unknown gain, and the waveform growing with the gain, and that grains
   follow the amp envelope (gone at release when it's unknown or short, still
-  coming in a long release, dimmer early in a slow attack); `sdk.py test` runs
-  both.
+  coming in a long release, gone sooner for a larger release, dimmer early in
+  a slow attack); `sdk.py test` runs both.
+- `amp_curve.h`: stock's amp envelope times and shapes, for the screen.
 
 Sample engines have no browser preview of their own. `docs/screen/preview.png`
 was rendered by running `display.cpp` through a stand-in synth with the same

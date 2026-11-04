@@ -8,39 +8,45 @@
 namespace grains {
 namespace {
 // The track's amp envelope as the screen follows it (SDK 1.10, input.amp),
-// so the note's motion lasts as long as its sound: a level that swells over
-// the attack, falls over the decay to the sustain while a note is held, and
-// fades over the release from wherever it was. Stock maps the envelope page's
-// positions to times along its own curves, which aren't documented: assumed
-// here exponential in the position, 2 ms at 0 to 10 s at full, for attack,
-// decay and release alike, and the sustain a level, linear. With the envelope
+// so the note's motion lasts as long as its sound. The times and shapes are
+// stock OS 1.2.1's, from amp_curve.h (a byte-identical copy of the helper the
+// other suites use): a larger attack or decay is a longer stage, but a larger
+// release is a shorter one (a release of 100 is stock's shortest, about 6 ms).
+// The level rises concavely over the attack, from wherever it is, falls
+// exponentially over the decay and stops at the sustain level plus 1%, holds
+// the sustain, a linear level, while a note is held, and fades exponentially
+// over the release from wherever it was, to -66 dB. With the envelope
 // unknown, or reduced motion, the level is 1 while a note is held and 0
 // otherwise, as before.
-inline opxy::u32 stage_ms(opxy::i32 position) {
-    const opxy::u32 p = position < 0 ? 0 : opxy::u32(position) >> 15;   // Q16
-    opxy::u32 l = ((p >> 4) * 3146) >> 4;   // 12.29 p, Q16: log2(5000) octaves at full
-    const opxy::u32 whole = l >> 16, m = 65536 + (l & 0xffff);
-    const opxy::u32 ms = (m << whole) >> 15;   // 2 ms * 2^l, by Mitchell's approximation
-    return ms < 2 ? 2 : ms;
+namespace amp_env {
+#include "amp_curve.h"
 }
-inline void follow(Swell& s, const opxy::draw::Envelope& amp, bool held, bool started, bool still, opxy::u32 ms) {
-    if (still || !opxy::draw::envelope_known(amp)) { s.level = held ? 65536 : 0; s.stage = held ? 2 : 0; return; }
-    if (held && (started || s.stage == 0 || s.stage == 3)) s.stage = 1;
-    if (held) {
-        const opxy::u32 sustain = opxy::u32(amp.sustain < 0 ? 0 : amp.sustain) >> 15;
-        if (s.stage == 1) {
-            s.level += 65536 * ms / stage_ms(amp.attack);
-            if (s.level >= 65536) { s.level = 65536; s.stage = 2; }
-        } else {
-            const opxy::u32 step = (65536 - sustain) * ms / stage_ms(amp.decay);
-            s.level = s.level > sustain + step ? s.level - step : sustain;
-        }
-    } else if (s.stage) {
-        if (s.stage != 3) { s.stage = 3; s.from = s.level; }
-        const opxy::u32 step = s.from * ms / stage_ms(amp.release) + 1;
-        s.level = s.level > step ? s.level - step : 0;
-        if (!s.level) s.stage = 0;
+// A Q16 level (0 .. 2.0) times a Q15 factor, in 32 bits.
+inline opxy::u32 scaled(opxy::u32 level, opxy::u32 factor) {
+    return (level >> 15) * factor + (((level & 0x7fffu) * factor) >> 15);
+}
+// us: the time since the last frame. Stages: 0 idle, 1 attack, 2 decay, 3 release, 4 sustain.
+inline void follow(Swell& s, const opxy::draw::Envelope& e, bool held, bool started, bool still, opxy::u32 us) {
+    if (still || !opxy::draw::envelope_known(e)) { s.level = held ? 65536 : 0; s.stage = held ? 2 : 0; s.from = 0; return; }
+    const opxy::u32 top = opxy::u32(amp_env::sustain_q15(e.sustain)) << 1;   // the sustain, Q16
+    // A new note, or keys held while the envelope has let go, starts the attack from where the level is.
+    if (started || (held && (s.stage == 0 || s.stage == 3))) s.stage = 1;
+    if (s.stage == 1) {
+        // L(u) = 2 (1 - 0.505^u): what is left below 2 shrinks by the attack's factor.
+        s.level = 131072 - scaled(131072 - s.level, amp_env::attack_frame_q15(e.attack, us));
+        if (s.level >= opxy::u32(amp_env::attack_peak_q15) << 1) { s.level = 65536; s.stage = 2; }
+    } else if (s.stage == 2) {
+        s.level = scaled(s.level, amp_env::decay_frame_q15(e.decay, us));
+        if (s.level <= top + 655) { s.level = top; s.stage = 4; }
+    } else if (s.stage == 4) {
+        s.level = top;
+    } else if (s.stage == 3) {
+        s.level = scaled(s.level, amp_env::release_frame_q15(e.release, us));
+        if (s.level < 33) { s.level = 0; s.stage = 0; }   // 0.0005, -66 dB
     }
+    // The last key up (or a note too short to see held) lets go: the release runs from this level.
+    if (!held && (s.stage == 1 || s.stage == 2 || s.stage == 4)) s.stage = s.level ? 3 : 0;
+    s.from = 0;
 }
 
 using namespace opxy::draw;
@@ -434,7 +440,7 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     const bool held = input.held_notes != 0 && input.held_notes <= 128;
     if (events.hold_started) { state.scan = 0; state.next = 0; state.spawned = 0; }
     const u32 ms = u32(clamp(input.elapsed, 0, 102)) * 1000 >> 10;
-    follow(state.swell, input.amp, held, events.hold_started, input.reduced_motion != 0, ms);
+    follow(state.swell, input.amp, held, events.hold_started, input.reduced_motion != 0, u32(clamp(input.elapsed, 0, 256)) * 15625u >> 4);
     const bool sounding = held || state.swell.level;
     const bool moving = sounding && !input.reduced_motion;
     if (moving) {

@@ -19,7 +19,7 @@ const opxy::u32 dash_lengths = 3;
 struct ShownGrain { opxy::u16 age, life; opxy::u16 position; opxy::u8 note; signed char drift; };
 
 // The amp envelope's level as the screen follows it (display.cpp, follow()).
-struct Swell { opxy::u32 level, from, stage; };   // level and from (the release's start) Q16; stage 0 idle, 1 attack, 2 decay, 3 release
+struct Swell { opxy::u32 level, from, stage; };   // level Q16; from spare (0); stage 0 idle, 1 attack, 2 decay, 3 release, 4 sustain
 
 struct DisplayState {
     opxy::draw::PageHeader header;
