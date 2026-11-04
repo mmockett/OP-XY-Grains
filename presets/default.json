@@ -1,0 +1,106 @@
+{
+  "engine": {
+    "bendrange": 8191,
+    "highpass": 0,
+    "modulation": {
+      "aftertouch": {
+        "amount": 16384,
+        "target": 0
+      },
+      "modwheel": {
+        "amount": 16384,
+        "target": 0
+      },
+      "pitchbend": {
+        "amount": 16384,
+        "target": 0
+      },
+      "velocity": {
+        "amount": 16384,
+        "target": 0
+      }
+    },
+    "playmode": "poly",
+    "portamento.amount": 0,
+    "portamento.type": 0,
+    "transpose": 0,
+    "tuning.root": 0,
+    "tuning.scale": 0,
+    "velocity.sensitivity": 0,
+    "volume": 16384,
+    "width": 0,
+    "params": [
+      0,
+      27968,
+      12860,
+      5174,
+      0,
+      2341,
+      16384,
+      2731
+    ]
+  },
+  "envelope": {
+    "amp": {
+      "attack": 128,
+      "decay": 8192,
+      "release": 9000,
+      "sustain": 32767
+    },
+    "filter": {
+      "attack": 0,
+      "decay": 0,
+      "release": 0,
+      "sustain": 32767
+    }
+  },
+  "fx": {
+    "active": false,
+    "params": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      32767,
+      0,
+      0
+    ],
+    "type": "svf"
+  },
+  "lfo": {
+    "active": false,
+    "params": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "type": "value"
+  },
+  "octave": 0,
+  "platform": "OP-XY",
+  "regions": [
+    {
+      "framecount": 264600,
+      "gain": 0,
+      "hikey": 60,
+      "loop.crossfade": 0,
+      "loop.end": 264600,
+      "loop.onrelease": true,
+      "loop.start": 0,
+      "pitch.keycenter": 60,
+      "reverse": false,
+      "sample": "content/samples/grains/wane.wav",
+      "sample.end": 264600,
+      "sample.start": 0,
+      "tune": 0
+    }
+  ],
+  "version": 4,
+  "type": "grains"
+}

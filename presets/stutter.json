@@ -84,7 +84,23 @@
   },
   "octave": 0,
   "platform": "OP-XY",
-  "regions": [],
+  "regions": [
+    {
+      "framecount": 264600,
+      "gain": 0,
+      "hikey": 60,
+      "loop.crossfade": 0,
+      "loop.end": 264600,
+      "loop.onrelease": true,
+      "loop.start": 0,
+      "pitch.keycenter": 60,
+      "reverse": false,
+      "sample": "content/samples/grains/wane.wav",
+      "sample.end": 264600,
+      "sample.start": 0,
+      "tune": 0
+    }
+  ],
   "type": "grains",
   "version": 4
 }
