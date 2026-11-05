@@ -201,7 +201,7 @@ void shift_row(const Input& input, const opxy::u8 (&pages)[2][4], const opxy::dr
             values[slot][0] = '\0';
             if (o.gain == opxy::draw::gain_unavailable) { titles[slot] = ""; continue; }
             values[slot][0] = o.gain < 0 ? '-' : '+';
-            put(values[slot] + 1, u32(o.gain < 0 ? -o.gain : o.gain));
+            *put(values[slot] + 1, u32(o.gain < 0 ? -o.gain : o.gain)) = '\0';
         } else if (known) seconds(values[slot], marks[col], o.rate);
         else copy(values[slot], header_capacity, "-");
     }

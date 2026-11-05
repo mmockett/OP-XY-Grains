@@ -132,6 +132,20 @@ int main() {
               "page 2's Shift row gives 1.00s, 2.00s and 3.00s");
         check(s.frame.nodes[grains::trim_first].shade == 14, "Shift brightens the markers");
     }
+    {   // Turning the gain on one screen, as Shift + encoder 3 does: each step reads
+        // as itself, with nothing left over from the slot's own value: on page 1
+        // gain sits in size's slot, and a long size ("1.2s") outlasts "+1".
+        Screen s;
+        s.input.shift = 1;
+        s.input.slots[2] = at(0.9);
+        for (i32 g = -30; g <= 20; ++g) {
+            overview.gain = g;
+            s.run(1);
+            char want[8];
+            std::snprintf(want, sizeof want, "%c%d", g < 0 ? '-' : '+', g < 0 ? -g : g);
+            check(!std::strcmp(s.text(6), want), "turning the gain reads each step, with no leftover digits");
+        }
+    }
     {   // The gain (SampleOverview.gain, #400) in stock's steps, every one within
         // the caption's width, and the strip's waveform taller as it rises.
         double last = 0, last_ten = 0;
