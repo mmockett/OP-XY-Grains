@@ -38,6 +38,7 @@ u32 times(u32 a, u32 b) {
 
 // 2^(cents/1200) in Q16: whole semitones from the table, the rest linearly.
 u32 cents_ratio(i32 cents) {
+    if (!cents) return 65536;
     i32 octave = 0;
     while (cents < 0) { cents += 1200; --octave; }
     while (cents >= 1200) { cents -= 1200; ++octave; }
@@ -106,6 +107,13 @@ template <bool Stereo> i32 read(const opxy::i16* data, u32 frame, u32 fraction, 
     return a + mul16((b - a) >> 1, fraction >> 1);   // half the step by half the fraction: one multiply
 }
 
+// Half the output, held within half of half scale, then doubled.
+inline i32 full(i32 x) {
+    const i32 limit = half_scale >> 1;
+    x = x < limit ? x : limit;
+    return (x > -limit ? x : -limit) * 2;
+}
+
 // The controls, decoded once a block.
 struct Settings {
     u32 begin, end, span;   // the region
@@ -143,7 +151,7 @@ Settings decode(const Voice& voice, const opxy::SampleBlock& block) {
     centred = centred > 128 ? centred - 128 : centred < -128 ? centred + 128 : 0;
     const u32 magnitude = u32(centred < 0 ? -centred : centred);
     const u32 curved = magnitude * magnitude / 16256;            // 0..65536: 1.0x is 32768
-    const u32 own_rate = ratio(voice.sample.rate, 44100);       // the sample's rate, Q16 of 44.1 kHz
+    const u32 own_rate = voice.sample.rate == 44100 ? 65536u : ratio(voice.sample.rate, 44100);   // Q16 of 44.1 kHz
     const i32 speed = i32(times(curved * 2, own_rate));
     s.speed = centred < 0 ? -speed : speed;
     s.length = curve(size_table, 5, level(p[kSize]));
@@ -208,14 +216,16 @@ Grain* spawn(Voice& voice, const Settings& s, const u32* free_at = 0, u32 at = 0
     // Where it reads: pos, plus the scan, plus spray, wrapped into the region.
     i32 offset = i32(s.pos) + voice.scan;
     if (s.spray) offset += i32(next_random(voice) % (2 * s.spray + 1)) - i32(s.spray);
-    offset %= i32(s.span);
-    if (offset < 0) offset += i32(s.span);
+    if (offset < 0 || offset >= i32(s.span)) {   // most grains start inside: no division
+        offset %= i32(s.span);
+        if (offset < 0) offset += i32(s.span);
+    }
     g->frame = s.begin + u32(offset);
     g->fraction = 0;
     // Its pitch: the note, times chrd's note for this grain.
     const u32 n = voice.spawned++;
     const u32 count = chord_count[s.chord];
-    u32 r = chord_table[s.chord * 8 + n % count];
+    u32 r = chord_table[s.chord * 8 + (count > 1 ? n % count : 0)];
     if (s.chord == 1) r = detune_table[n % 8];
     g->step = times(s.rate, r);
     // spry, in stages: position scatter from the start (above), stereo spread
@@ -244,7 +254,7 @@ Grain* spawn(Voice& voice, const Settings& s, const u32* free_at = 0, u32 at = 0
     g->age = 0;
     const u32 r16 = next_random(voice) >> 16;
     const u32 wide = (s.chaos * 17) >> 16, width = wide > 8 ? 8 : wide;   // 0..8, full from the middle
-    g->pan = opxy::u8(8 + i32(r16 % (2 * width + 1)) - i32(width));
+    g->pan = opxy::u8(8 + (width ? i32(r16 % (2 * width + 1)) - i32(width) : 0));
     const u32 flips = s.chaos <= 16384 ? 0 : s.chaos - 16384 > 32768 ? 32768 : s.chaos - 16384;   // Q16 chance
     g->reverse = s.backward != ((next_random(voice) >> 16) < flips);
     g->active = true;
@@ -273,114 +283,209 @@ void retire(Grain& g) {
 }
 
 // Fades out the grains a voice sounds beyond cap, those with longest left
-// first, so a voice whose share shrinks keeps to it within fade samples.
+// first (the first slot of equals), so a voice whose share shrinks keeps to it
+// within fade samples. A retired grain has fade left, so retiring one at a time
+// would pick the same ones: one pass and a sort, not a pass for each.
 void shed(Voice& voice, u32 cap) {
+    opxy::u8 order[grain_count];
     u32 staying = 0;
-    for (u32 k = 0; k < grain_count; ++k)
-        staying += voice.grains[k].active && voice.grains[k].length - voice.grains[k].age > fade;
-    for (; staying > cap; --staying) {
-        Grain* longest = 0;
-        for (u32 k = 0; k < grain_count; ++k) {
-            Grain& g = voice.grains[k];
-            if (g.active && g.length - g.age > fade && (!longest || g.length - g.age > longest->length - longest->age))
-                longest = &g;
-        }
-        retire(*longest);
+    for (u32 k = 0; k < grain_count; ++k) {
+        const Grain& g = voice.grains[k];
+        if (!g.active) continue;
+        const u32 left = g.length - g.age;
+        if (left <= fade) continue;
+        u32 at = staying++;   // insertion, longest first, keeping slot order among equals
+        for (; at && voice.grains[order[at - 1]].length - voice.grains[order[at - 1]].age < left; --at) order[at] = order[at - 1];
+        order[at] = opxy::u8(k);
     }
+    for (u32 k = cap; k < staying; ++k) retire(voice.grains[order[k - cap]]);
 }
 
-// A grain's left and right amplitude at age t, its window, gain and pan in one
-// Q9 multiplier: a sample times (amplitude >> 9), at most 26753 so that both
-// fit 16 bits, is half its share of the output.
-void amplitude(const Grain& g, u32 t, i32& left, i32& right) {
+// A grain's window and gain at age t, before its pan: at most 53508.
+i32 shaped(const Grain& g, u32 t) {
     const u32 position = window_position(g, t), index = position >> 16, part = position & 0xffff;
     const i32 w = index >= 64 ? window_table[64] :
         window_table[index] + ((i32(window_table[index + 1]) - window_table[index]) * i32(part) >> 16);
-    const i32 shaped = (w * g.gain) >> 15;                           // at most 53508
-    left = (shaped * pan_table[g.pan]) >> 7;
-    right = (shaped * pan_table[16 - g.pan]) >> 7;
+    return (w * g.gain) >> 15;
 }
 
-// n samples of one grain into out (left/right pairs), its amplitudes ramped
-// by dl and dr a sample. Reverse and the sample's channels are fixed per call.
-// Most runs stay clear of the region's ends, and then read without checking.
-template <bool Stereo, bool Reverse>
-void play(Grain& g, const opxy::SampleView& sample, const Settings& s, i32* out, u32 n, i32 l, i32 r, i32 dl, i32 dr) {
-    const opxy::i16* data = sample.data;
-    const u32 whole = g.step >> 16, part = g.step & 0xffff;
-    u32 frame = g.frame, fraction = g.fraction;
-    const u32 travel = (fraction + n * g.step) >> 16;   // frames the run moves: n <= 16, so no overflow
-    const bool clear = Reverse ? frame + 1 < s.end && frame >= s.begin + travel + 1
-                               : frame + travel + 1 < s.end;
-    if (clear) {
-        for (; n; --n, out += 2) {
-            const i32 a = Stereo ? (i32(data[frame * 2]) + data[frame * 2 + 1]) >> 1 : data[frame];
-            const i32 b = Stereo ? (i32(data[frame * 2 + 2]) + data[frame * 2 + 3]) >> 1 : data[frame + 1];
-            const i32 v = a + mul16((b - a) >> 1, fraction >> 1);
-            out[0] += i32(opxy::i16(v)) * opxy::i16(l >> 9);
-            out[1] += i32(opxy::i16(v)) * opxy::i16(r >> 9);
-            l += dl;
-            r += dr;
-            fraction += part;
-            if (Reverse) frame -= whole + (fraction >> 16);
-            else frame += whole + (fraction >> 16);
+// The block's mix, half of each sample's output, for headroom. A grain panned
+// off centre adds to pairs (left/right); a centred one, whose left and right
+// are equal, adds once to centre, which goes to both sides at the end. Each is
+// cleared when a grain first adds to it.
+struct Mix {
+    i32 pairs[2 * opxy::block_frames];
+    i32 centre[opxy::block_frames];
+    bool has_pairs, has_centre;
+};
+
+// One segment of a grain's run: n samples, its amplitudes from l and r, ramped
+// by dl and dr a sample. An amplitude is the window, gain and pan in one Q9
+// multiplier: a sample times (amplitude >> 9), at most 26753 so that both fit
+// 16 bits, is half its share of the output.
+struct Ramp {
+    u32 n;
+    i32 l, dl, r, dr;
+};
+
+// A grain's segments into out (left/right pairs, or one word a sample for a
+// centred grain), reading from at with fraction, for a run clear of the
+// region's ends: no checks. Reverse, the sample's channels and centring are
+// fixed per function, so that each loop keeps to registers. Each sample's
+// frames are read while the one before is mixed. Returns where the next
+// sample reads.
+template <bool Stereo, bool Reverse, bool Centre>
+__attribute__((noinline)) const opxy::i16* run(const opxy::i16* at, u32* fraction_io, u32 step, i32* out,
+                                               const Ramp* ramp, u32 count) {
+    const u32 stride = Centre ? 1 : 2, width = Stereo ? 2 : 1;
+    u32 fraction = *fraction_io;
+    // The run ends at least a frame clear of the region's end (play), so the
+    // frames read ahead after its last sample are still in it.
+    i32 a = Stereo ? (i32(at[0]) + at[1]) >> 1 : at[0];
+    i32 b = Stereo ? (i32(at[2]) + at[3]) >> 1 : at[1];
+    for (; count; --count, ++ramp) {
+        i32 l = ramp->l, r = Centre ? 0 : ramp->r;
+        const i32 dl = ramp->dl, dr = Centre ? 0 : ramp->dr;
+        for (u32 n = ramp->n; n; --n, out += stride) {
+            // The whole step at once: fraction < 2^16, so the frames are its top half.
+            const u32 f = fraction;
+            fraction += step;
+            const u32 frames = fraction >> 16;
             fraction &= 0xffff;
-        }
-    } else {
-        for (; n; --n, out += 2) {
-            const i32 v = read<Stereo>(data, frame, fraction, s.end);
+            if (Reverse) at -= frames * width;
+            else at += frames * width;
+            // mul16, on operands the compiler can't widen: the Blackfin's 16 by
+            // 16 multiply. (b - a) >> 1 fits 16 bits, so its low half is the same.
+            const i32 v = a + ((i32(opxy::i16(u32(b - a) >> 1)) * opxy::i16(f >> 1)) >> 14);
+            a = Stereo ? (i32(at[0]) + at[1]) >> 1 : at[0];
+            b = Stereo ? (i32(at[2]) + at[3]) >> 1 : at[1];
             out[0] += i32(opxy::i16(v)) * opxy::i16(l >> 9);
-            out[1] += i32(opxy::i16(v)) * opxy::i16(r >> 9);
             l += dl;
-            r += dr;
-            // Read on, wrapping within the region.
-            fraction += part;
-            const u32 frames = whole + (fraction >> 16);
-            fraction &= 0xffff;
-            if (Reverse) {
-                const u32 back = frame - s.begin;
-                frame = s.begin + (back >= frames ? back - frames : s.span - (frames - back) % s.span);
-                if (frame >= s.end) frame = s.begin;
-            } else {
-                frame += frames;
-                if (frame >= s.end) frame = s.begin + (frame - s.end) % s.span;
+            if (!Centre) {
+                out[1] += i32(opxy::i16(v)) * opxy::i16(r >> 9);
+                r += dr;
             }
+        }
+    }
+    *fraction_io = fraction;
+    return at;
+}
+
+// One segment of a grain, as run, for a run that may reach a region's end:
+// each read checks it and the read point wraps within the region.
+template <bool Stereo, bool Reverse, bool Centre>
+void wrap(Grain& g, const opxy::i16* data, const Settings& s, i32* out, const Ramp& ramp) {
+    const u32 stride = Centre ? 1 : 2, whole = g.step >> 16, part = g.step & 0xffff;
+    u32 frame = g.frame, fraction = g.fraction;
+    i32 l = ramp.l, r = ramp.r;
+    for (u32 n = ramp.n; n; --n, out += stride) {
+        const i32 v = read<Stereo>(data, frame, fraction, s.end);
+        out[0] += i32(opxy::i16(v)) * opxy::i16(l >> 9);
+        l += ramp.dl;
+        if (!Centre) {
+            out[1] += i32(opxy::i16(v)) * opxy::i16(r >> 9);
+            r += ramp.dr;
+        }
+        fraction += part;
+        const u32 frames = whole + (fraction >> 16);
+        fraction &= 0xffff;
+        if (Reverse) {
+            const u32 back = frame - s.begin;
+            frame = s.begin + (back >= frames ? back - frames : s.span - (frames - back) % s.span);
+            if (frame >= s.end) frame = s.begin;
+        } else {
+            frame += frames;
+            if (frame >= s.end) frame = s.begin + (frame - s.end) % s.span;
         }
     }
     g.frame = frame;
     g.fraction = fraction;
 }
 
+// Whether n samples from g's read point stay clear of the region's ends, with
+// a frame to spare. n <= 64 and part < 2^16, so no overflow.
+template <bool Reverse>
+bool clear(const Grain& g, const Settings& s, u32 n) {
+    const u32 travel = n * (g.step >> 16) + ((g.fraction + n * (g.step & 0xffff)) >> 16);   // frames it moves
+    return Reverse ? g.frame + 1 < s.end && g.frame >= s.begin + travel + 1 : g.frame + travel + 1 < s.end;
+}
+
+// count segments, n samples in all, of one grain into out. Most runs stay
+// clear of the region's ends, and then read without checking; a run that
+// isn't goes a segment at a time, each read without checking where it can.
+template <bool Stereo, bool Reverse, bool Centre>
+void play(Grain& g, const opxy::SampleView& sample, const Settings& s, i32* out, const Ramp* ramp, u32 count, u32 n) {
+    const u32 width = Stereo ? 2 : 1, stride = Centre ? 1 : 2;
+    if (clear<Reverse>(g, s, n)) {
+        const opxy::i16* at = run<Stereo, Reverse, Centre>(sample.data + g.frame * width, &g.fraction, g.step, out, ramp, count);
+        g.frame = u32(at - sample.data) / width;
+        return;
+    }
+    for (; count; --count, ++ramp) {
+        if (clear<Reverse>(g, s, ramp->n)) {
+            const opxy::i16* at = run<Stereo, Reverse, Centre>(sample.data + g.frame * width, &g.fraction, g.step, out, ramp, 1);
+            g.frame = u32(at - sample.data) / width;
+        } else {
+            wrap<Stereo, Reverse, Centre>(g, sample.data, s, out, *ramp);
+        }
+        out += stride * ramp->n;
+    }
+}
+
 // One grain over block samples [from, to), in segments of at most 16 samples
 // (to the block's 16-sample marks, the window's peak and the grain's end),
-// each a straight ramp between its amplitudes at either end. Returns the
-// sample from which its slot is free: to while it sounds on.
-u32 render_grain(Grain& g, const opxy::SampleView& sample, const Settings& s, i32* out, u32 from, u32 to) {
-    u32 i = from;
-    while (i < to && g.active) {
+// each a straight ramp between its amplitudes at either end; a segment's end
+// is the next one's start. Returns the sample from which its slot is free: to
+// while it sounds on.
+template <bool Stereo, bool Reverse, bool Centre>
+u32 sound(Grain& g, const opxy::SampleView& sample, const Settings& s, i32* mix, u32 from, u32 to) {
+    const i32 pan_left = pan_table[g.pan], pan_right = pan_table[16 - g.pan];
+    Ramp ramps[6];   // at most five: to each 16-sample mark in a block, and one split at the peak
+    u32 count = 0, age = g.age, i = from;
+    const i32 w0 = shaped(g, age);
+    i32 l0 = (w0 * pan_left) >> 7, r0 = Centre ? 0 : (w0 * pan_right) >> 7;
+    while (i < to && age < g.length) {
         u32 n = ((i | 15) + 1 < to ? (i | 15) + 1 : to) - i;
-        if (n > g.length - g.age) n = g.length - g.age;
-        if (g.age < g.peak && n > g.peak - g.age) n = g.peak - g.age;
-        i32 l0, r0, l1, r1;
-        amplitude(g, g.age, l0, r0);
-        amplitude(g, g.age + n, l1, r1);
+        if (n > g.length - age) n = g.length - age;
+        if (age < g.peak && n > g.peak - age) n = g.peak - age;
+        const i32 w = shaped(g, age + n);
+        const i32 l1 = (w * pan_left) >> 7, r1 = Centre ? 0 : (w * pan_right) >> 7;
+        Ramp& ramp = ramps[count++];
+        ramp.n = n;
+        ramp.l = l0;
+        ramp.r = r0;
         // A full segment divides by a shift; the rare shorter ones by n.
-        const i32 dl = n == 16 ? (l1 - l0) >> 4 : (l1 - l0) / i32(n);
-        const i32 dr = n == 16 ? (r1 - r0) >> 4 : (r1 - r0) / i32(n);
-        i32* at = out + 2 * i;
-        const bool stereo = sample.channels == 2;
-        if (g.reverse) {
-            if (stereo) play<true, true>(g, sample, s, at, n, l0, r0, dl, dr);
-            else play<false, true>(g, sample, s, at, n, l0, r0, dl, dr);
-        } else {
-            if (stereo) play<true, false>(g, sample, s, at, n, l0, r0, dl, dr);
-            else play<false, false>(g, sample, s, at, n, l0, r0, dl, dr);
-        }
+        ramp.dl = n == 16 ? (l1 - l0) >> 4 : (l1 - l0) / i32(n);
+        ramp.dr = Centre ? 0 : n == 16 ? (r1 - r0) >> 4 : (r1 - r0) / i32(n);
+        l0 = l1;
+        r0 = r1;
         i += n;
-        g.age += n;
-        if (g.age >= g.length) g.active = false;
+        age += n;
     }
-    return g.active ? to : i;
+    play<Stereo, Reverse, Centre>(g, sample, s, mix + (Centre ? 1 : 2) * from, ramps, count, i - from);
+    g.age = age;
+    if (age >= g.length) { g.active = false; return i; }
+    return to;
+}
+
+// One grain over block samples [from, to), into the mix for its pan. Returns
+// the sample from which its slot is free.
+u32 render_grain(Grain& g, const opxy::SampleView& sample, const Settings& s, Mix& mix, u32 from, u32 to) {
+    if (from >= to || !g.active) return g.active ? to : from;
+    // pan_table[8] both ways: a centred grain's left and right are equal.
+    const bool stereo = sample.channels == 2;
+    if (g.pan == 8) {
+        if (!mix.has_centre) { for (u32 k = 0; k < opxy::block_frames; ++k) mix.centre[k] = 0; mix.has_centre = true; }
+        if (g.reverse) return stereo ? sound<true, true, true>(g, sample, s, mix.centre, from, to)
+                                     : sound<false, true, true>(g, sample, s, mix.centre, from, to);
+        return stereo ? sound<true, false, true>(g, sample, s, mix.centre, from, to)
+                      : sound<false, false, true>(g, sample, s, mix.centre, from, to);
+    }
+    if (!mix.has_pairs) { for (u32 k = 0; k < 2 * opxy::block_frames; ++k) mix.pairs[k] = 0; mix.has_pairs = true; }
+    if (g.reverse) return stereo ? sound<true, true, false>(g, sample, s, mix.pairs, from, to)
+                                 : sound<false, true, false>(g, sample, s, mix.pairs, from, to);
+    return stereo ? sound<true, false, false>(g, sample, s, mix.pairs, from, to)
+                  : sound<false, false, false>(g, sample, s, mix.pairs, from, to);
 }
 }
 
@@ -407,10 +512,11 @@ void start(Voice& voice) {
 void render_sample(Voice& voice, const opxy::SampleBlock& block) {
     const bool stereo = block.output_channels == 2;
     const u32 words = stereo ? 2 * opxy::block_frames : opxy::block_frames;
-    for (u32 i = 0; i < words; ++i) block.output[i] = 0;
-    if (!voice.sample.frames || !voice.sample.data) return;
-    Settings s = decode(voice, block);
-    if (!s.span) return;
+    Settings s;
+    if (!voice.sample.frames || !voice.sample.data || !(s = decode(voice, block)).span) {
+        for (u32 i = 0; i < words; ++i) block.output[i] = 0;
+        return;
+    }
     // The voice's share of the grain budget: past it, fewer grains at once in
     // cloud and osc, and shorter ones on the same beat in sync.
     const u32 want = wanted(s, block), cap = share(voice, want);
@@ -426,7 +532,8 @@ void render_sample(Voice& voice, const opxy::SampleBlock& block) {
     // A grain at a time through the block: first those already sounding, then
     // each one due to start, from its own sample. A slot is free for a new
     // grain only from the sample its old one ends on.
-    i32 mix[2 * opxy::block_frames] = {};   // half of each sample's output, for headroom
+    Mix mix;
+    mix.has_pairs = mix.has_centre = false;
     u32 free_at[grain_count];
     for (u32 k = 0; k < grain_count; ++k)
         free_at[k] = voice.grains[k].active ? render_grain(voice.grains[k], voice.sample, s, mix, 0, opxy::block_frames) : 0;
@@ -442,19 +549,38 @@ void render_sample(Voice& voice, const opxy::SampleBlock& block) {
         if (i >= opxy::block_frames) break;
     }
 
-    for (u32 i = 0; i < opxy::block_frames; ++i) {
-        i32 left = mix[2 * i], right = mix[2 * i + 1];   // half the output
-        // The sample's own volume (unsigned Q27, unity 1 << 27), as the sampler applies it.
-        if (block.region.level != opxy::sample_unity_level) {
-            const i32 level = i32(block.region.level >> 16);          // Q11
-            left = (left >> 11) * level;
-            right = (right >> 11) * level;
+    // Half the output, a word a frame while every grain is centred, else as pairs.
+    i32* half = mix.pairs;
+    u32 count = 2 * opxy::block_frames;
+    if (!mix.has_pairs) {
+        if (mix.has_centre) { half = mix.centre; count = opxy::block_frames; }
+        else for (u32 k = 0; k < count; ++k) half[k] = 0;
+    } else if (mix.has_centre) {
+        for (u32 i = 0; i < opxy::block_frames; ++i) {
+            half[2 * i] = i32(u32(half[2 * i]) + u32(mix.centre[i]));
+            half[2 * i + 1] = i32(u32(half[2 * i + 1]) + u32(mix.centre[i]));
         }
-        const i32 limit = half_scale >> 1;
-        left = (left > limit ? limit : left < -limit ? -limit : left) << 1;
-        right = (right > limit ? limit : right < -limit ? -limit : right) << 1;
-        if (stereo) { block.output[2 * i] = left; block.output[2 * i + 1] = right; }
-        else block.output[i] = (left >> 1) + (right >> 1);
+    }
+    // The sample's own volume (unsigned Q27, unity 1 << 27), as the sampler applies it.
+    if (block.region.level != opxy::sample_unity_level) {
+        const i32 level = i32(block.region.level >> 16);          // Q11
+        for (u32 k = 0; k < count; ++k) half[k] = (half[k] >> 11) * level;
+    }
+    if (count == opxy::block_frames) {   // centred: left and right are the same
+        if (stereo) {
+            for (u32 i = 0; i < opxy::block_frames; ++i) {
+                const i32 y = full(half[i]);
+                block.output[2 * i] = y;
+                block.output[2 * i + 1] = y;
+            }
+        } else {
+            for (u32 i = 0; i < opxy::block_frames; ++i) block.output[i] = full(half[i]);   // (y >> 1) + (y >> 1), y even
+        }
+    } else if (stereo) {
+        for (u32 k = 0; k < count; ++k) block.output[k] = full(half[k]);
+    } else {
+        for (u32 i = 0; i < opxy::block_frames; ++i)
+            block.output[i] = (full(half[2 * i]) >> 1) + (full(half[2 * i + 1]) >> 1);
     }
 
     // The scan moves pos's read point on, in real time, wrapping in the region.

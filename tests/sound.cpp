@@ -287,6 +287,31 @@ int main() {
         }
         check(worst < 0.01, "a grain's output follows its window");
     }
+    {   // Centred grains (spry 0) mix once for both sides: left equals right, and a
+        // mono track gets the same; spry spreads them, and the sides part.
+        Rig a(sine, frames), b(sine, frames);
+        a.parameters[grains::kDens] = b.parameters[grains::kDens] = at(1);
+        b.block.output_channels = 1;
+        bool same = true, mono = true;
+        for (u32 n = 0; n < 300; ++n) {
+            grains::render_sample(a.voice, a.block);
+            grains::render_sample(b.voice, b.block);
+            for (u32 i = 0; i < opxy::block_frames; ++i) {
+                same = same && a.out[2 * i] == a.out[2 * i + 1];
+                mono = mono && b.out[i] == a.out[2 * i];
+            }
+        }
+        check(same, "centred grains sound the same on both sides");
+        check(mono, "a mono track gets the centred mix");
+        Rig c(sine, frames);
+        c.parameters[grains::kSpry] = at(0.4);
+        bool parted = false;
+        for (u32 n = 0; n < 300 && !parted; ++n) {
+            grains::render_sample(c.voice, c.block);
+            for (u32 i = 0; i < opxy::block_frames; ++i) parted = parted || c.out[2 * i] != c.out[2 * i + 1];
+        }
+        check(parted, "spry spreads grains across the sides");
+    }
     {   // The grain budget, shared by every voice: osc at dens 20, half-second grains.
         auto sounding = [](const grains::Voice& v) {
             u32 n = 0;
@@ -427,6 +452,6 @@ int main() {
             }
         }
     }
-    if (!failures) std::puts("PASS grains: silence, levels, freeze, scan, chords, pitch, sync, osc, shape, size, spry, reverse, window, budget, shipped sample");
+    if (!failures) std::puts("PASS grains: silence, levels, freeze, scan, chords, pitch, sync, osc, shape, size, spry, reverse, window, centre, budget, shipped sample");
     return failures ? 1 : 0;
 }
