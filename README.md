@@ -10,15 +10,18 @@ where it reads and at what pitch, over the sample's own waveform.
 **Status: experimental.** Grains plays on an OP-XY running OS 1.2.1 and targets
 Open-XY SDK 1.10. v1.2.0, with its own sample, Shift on the sampler's markers
 and gain, and a screen that follows the amp envelope, has been played on an
-OP-XY; its CPU capture on the device is still to come. v1.1.0's render callback
-measured 3.067% of the stock block budget on the device (one capture of
-`opxy-sample-callback-v1`, graphics excluded). That measures its defaults only,
-so a preset or setting with more grains, `dens` up to 20 for example, costs
-more, and it isn't total device CPU or a worst-case sweep.
+OP-XY, and its render callback measures 3.09% of the stock block budget there
+(one capture of `opxy-sample-callback-v1` at v1.2.0, graphics excluded). That
+measures its defaults only, so a preset or setting with more grains, `dens` up
+to 20 for example, costs more, and it isn't total device CPU or a worst-case
+sweep.
 
 The [open-xy.com builder](https://open-xy.com/#preview/machines/grains)
-installs `v1.1.0`, the version the Open-XY catalog pins. v1.2.0 builds from
-source (below) until the SDK change it needs is part of the Open-XY SDK.
+installs `v1.1.0`, the version the Open-XY catalog pins; its entry is moving
+to v1.2.0 ([etcetc000/open-xy#419](https://github.com/etcetc000/open-xy/pull/419)).
+Until then, build v1.2.0 from source (below). The builder plays Grains'
+presets with no sample loaded, as it doesn't install a machine's own samples;
+a build from source opens them on wane.
 
 ## Playing it
 
@@ -115,13 +118,11 @@ sampler and draws its own screen. It targets [Open-XY](https://github.com/etcetc
 SDK 1.10, on the SDK's `staging` branch: sample engines with their own screen
 and the sample's overview with its gain, `stockShift`, which hands Shift and
 the encoders back to the stock sampler's markers and gain, and the track's amp
-envelope for the screen. Its own sample needs one more SDK change, still in
-review: `samples`, which lets a sample engine ship samples its presets load.
-Until it merges, build against the branch that adds it, `staging` with that
-change on top:
+envelope for the screen, and `samples`, which lets it ship the sample its
+presets open on:
 
 ```sh
-git clone -b sdk/machine-samples-v2 https://github.com/mmockett/open-xy ../open-xy
+git clone -b staging https://github.com/etcetc000/open-xy ../open-xy
 python ../open-xy/sdk.py toolchain fetch
 python ../open-xy/sdk.py test --machine . --cxx clang++ --host-cxx g++
 python ../open-xy/sdk.py test --machine . --firmware
