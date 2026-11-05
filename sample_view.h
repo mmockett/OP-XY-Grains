@@ -46,12 +46,14 @@
 //   authored about the slot's centre line (each machine draws its own flags),
 //   at the trim's start and end, in shade.
 // - place_shift_overlay: while Shift is held with a sample, the screen dims
-//   to about 30% and says how to swap the sample, as Grains' empty state says
-//   how to load one, in its sizes and shades, centred: "swap sample" (26 px,
-//   #CBCBCB) over "with" (18 px, #7D7D7D) and the Sample key's icon (Grains',
-//   28 px, #7D7D7D). The dimming is one node, the cover: a black rectangle
-//   over the screen below the header (y 39 to 220) authored with
-//   fill-opacity 0.7, which the machine's artwork puts above its main
+//   to about 10% and says how to swap the sample, as Grains' empty state says
+//   how to load one, in its sizes and shades: "swap sample" (26 px, #CBCBCB)
+//   over "with" (18 px, #7D7D7D) and the Sample key's icon (Grains', 28 px,
+//   #7D7D7D), centred across the screen and, up and down, in the space
+//   between the header (y 39) and the top of the machine's waveform (its
+//   SampleSlot's y - half), sample_overlay_shift. The dimming is one node,
+//   the cover: a black rectangle over the screen below the header (y 39 to
+//   220) authored with fill-opacity 0.9, which the machine's artwork puts above its main
 //   visuals and below what Shift edits (the waveform, the trim's markers),
 //   so those, and the header, stay bright. Nodes: cover, and the icon's
 //   three, icon .. icon + 2 (its outline, its circle and its bars), authored
@@ -71,13 +73,16 @@ static const u32 sample_columns = 96;
 // A column as authored (sample_view.py): this wide, in tenths of a pixel.
 static const i32 sample_column_width_tenths = 48;
 // The Shift overlay's icon nodes, and where its parts sit (px; the words'
-// baselines): centred on the 480 px screen, by the words' advances in Univers
-// Next Pro Light ("swap sample" 154.8 px at 26 px, "with" 35.2 at 18).
+// baselines) before sample_overlay_shift moves them up or down: centred on
+// the 480 px screen, by the words' advances in Univers Next Pro Light ("swap
+// sample" 154.8 px at 26 px, "with" 35.2 at 18). As placed here it spans y 89
+// (the top of "swap sample"'s capitals) to 157 (the key's foot), about 123.
 static const u32 sample_overlay_icon_nodes = 3;
 static const i32 sample_overlay_title_x = 163, sample_overlay_title_y = 108;   // "swap sample"
 static const i32 sample_overlay_with_x = 201, sample_overlay_with_y = 150;     // "with"
 static const i32 sample_overlay_icon_x = 250, sample_overlay_icon_y = 129;     // the key, 28 px square
 static const i32 sample_overlay_top = 39;                                      // the cover's top: the header stays bright
+static const i32 sample_overlay_middle = 123;                                  // the middle of the words and key, as placed above
 
 // Where a machine puts its sample: Q10 px and palette shades.
 struct SampleSlot {
@@ -188,20 +193,28 @@ void place_trim_marks(F& frame, u32 first, const ::opxy::draw::SampleOverview& o
     d::place(frame, first + 1, s.x0 + sample_along(s.width, end, frames), s.y, d::unit, shade, d::fill_and_stroke);
 }
 
+// How far the overlay's words and key move down (Q10 px; up when negative)
+// so their middle sits halfway between the header and the top of the slot's
+// waveform.
+static inline i32 sample_overlay_shift(const SampleSlot& s) {
+    return (sample_overlay_top * ::opxy::draw::unit + s.y - s.half) / 2 - sample_overlay_middle * ::opxy::draw::unit;
+}
+
 // The Shift overlay (cover, icon .. icon + 2, text slots text_slot and
-// text_slot + 1), while shown.
+// text_slot + 1), while shown, centred over the space above slot s's waveform.
 template <class F>
-void place_shift_overlay(F& frame, u32 cover, u32 icon, u32 text_slot, bool shown) {
+void place_shift_overlay(F& frame, u32 cover, u32 icon, u32 text_slot, const SampleSlot& s, bool shown) {
     namespace d = ::opxy::draw;
+    const i32 dy = sample_overlay_shift(s);
     if (shown) d::place(frame, cover, 0, 0, d::unit, 0, d::keep);
     else d::hide(frame, cover);
     for (u32 k = 0; k < sample_overlay_icon_nodes; ++k) {
-        if (shown) d::place(frame, icon + k, sample_overlay_icon_x * d::unit, sample_overlay_icon_y * d::unit, d::unit, 0, d::keep);
+        if (shown) d::place(frame, icon + k, sample_overlay_icon_x * d::unit, sample_overlay_icon_y * d::unit + dy, d::unit, 0, d::keep);
         else d::hide(frame, icon + k);
     }
     const i32 off_x = d::hidden_x * d::unit, off_y = d::hidden_y * d::unit;
-    d::text(frame, text_slot, shown ? sample_overlay_title_x * d::unit : off_x, shown ? sample_overlay_title_y * d::unit : off_y, d::unit,
+    d::text(frame, text_slot, shown ? sample_overlay_title_x * d::unit : off_x, shown ? sample_overlay_title_y * d::unit + dy : off_y, d::unit,
             shown ? "swap sample" : "");
-    d::text(frame, text_slot + 1, shown ? sample_overlay_with_x * d::unit : off_x, shown ? sample_overlay_with_y * d::unit : off_y, d::unit,
+    d::text(frame, text_slot + 1, shown ? sample_overlay_with_x * d::unit : off_x, shown ? sample_overlay_with_y * d::unit + dy : off_y, d::unit,
             shown ? "with" : "");
 }

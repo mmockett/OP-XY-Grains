@@ -445,7 +445,7 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
         for (u32 n = pos_node; n < grain_first + dash_lengths * grain_shown; ++n) hide(frame, n);
         for (u32 i = 0; i < 3; ++i) hide(frame, octave_first + i);
         for (u32 i = 0; i < 2; ++i) hide(frame, trim_first + i);
-        sample_view::place_shift_overlay(frame, overlay_cover, overlay_icon, overlay_text, false);
+        sample_view::place_shift_overlay(frame, overlay_cover, overlay_icon, overlay_text, strip, false);
         return;
     }
     hide(frame, cover_stage);
@@ -459,6 +459,6 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     // While Shift is held on a loaded sample: the cloud dimmed under a cover,
     // and how to swap the sample over it; the strip, its markers and the
     // header stay bright.
-    sample_view::place_shift_overlay(frame, overlay_cover, overlay_icon, overlay_text, input.shift && sample.overview);
+    sample_view::place_shift_overlay(frame, overlay_cover, overlay_icon, overlay_text, strip, input.shift && sample.overview);
 }
 }

@@ -227,6 +227,17 @@ int main() {
         s.run(1);
         check(s.hint_shown() && s.x(grains::overlay_icon) == grains::sample_view::sample_overlay_icon_x &&
               s.x(grains::overlay_icon + 1) == grains::sample_view::sample_overlay_icon_x, "Shift shows the overlay on a loaded sample, in its place");
+        {   // Its words and key centred between the header (y 39) and the strip's top (166), and within that space.
+            namespace sv = grains::sample_view;
+            const i32 dy = sv::sample_overlay_shift(grains::strip);
+            const double top = (grains::strip.y - grains::strip.half) / 1024.0, middle = sv::sample_overlay_middle + dy / 1024.0;
+            check(s.frame.nodes[grains::overlay_icon].y == sv::sample_overlay_icon_y * 1024 + dy &&
+                  s.frame.texts[grains::overlay_text].y == sv::sample_overlay_title_y * 1024 + dy &&
+                  s.frame.texts[grains::overlay_text + 1].y == sv::sample_overlay_with_y * 1024 + dy, "the overlay's parts move together");
+            check(std::fabs(middle - (39 + top) / 2) <= 0.5 && 89 + dy / 1024.0 >= 39 && 157 + dy / 1024.0 <= top,
+                  "the overlay sits centred between the header and the strip");
+            std::printf("Shift overlay: its middle at y %.1f, between the header (39) and the strip's top (%.0f)\n", middle, top);
+        }
         s.run();
         grains::Frame held = s.frame;
         s.run(30);

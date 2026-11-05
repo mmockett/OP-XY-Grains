@@ -47,10 +47,10 @@ def artwork(prefix, line, length, half, marks=None):
 
 
 def shift_cover(prefix, cover):
-    """Black, 70% opaque, over the screen below the header (y 39 to 220): the
-    screen under it shows at about 30%."""
+    """Black, 90% opaque, over the screen below the header (y 39 to 220): the
+    screen under it shows at about 10%."""
     return (f'<path id="{prefix}_node_{cover}"{PARKED} d="M0,39 L480,39 L480,220 L0,220 Z" fill="#000000" '
-            f'fill-opacity="0.7" stroke="none"/>')
+            f'fill-opacity="0.9" stroke="none"/>')
 
 
 def shift_overlay(prefix, first, text_slot):

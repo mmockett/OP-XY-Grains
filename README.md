@@ -53,7 +53,7 @@ instead, on either page, and the screen shows them:
 | encoder 3 | **gain**: the sample's gain, in stock's steps from -30 to +20 | the strip's waveform grows and shrinks, twice as tall each 10 steps up; `+0`, `-12`, `+20` (blank while no gain is known) |
 | encoder 4 | **end**: where grains stop reading | the end marker; its time in the sample |
 
-While Shift is held, the cloud dims to about 30% and over it the screen
+While Shift is held, the cloud dims to about 10% and over it the screen
 reads **swap sample with** and the Sample key's icon: with Shift down, the
 Sample key loads another sample in place of this one. The header's row, the
 waveform and its markers, what Shift edits, stay bright.

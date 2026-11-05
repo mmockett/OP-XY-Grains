@@ -57,11 +57,12 @@ straight above the stretch of sample it reads.
   puts it.
 - **Shift overlay** (`sample_view.h`, as Ghost and Recur show it): while
   Shift is held on a loaded sample, the cloud, its lanes and labels, pos and
-  its marks dim to about 30% under one node, a black cover 70% opaque over
+  its marks dim to about 10% under one node, a black cover 90% opaque over
   the screen below the header (node 150), drawn over them and under the
   strip and its markers, which, with the header's row, are what Shift edits
-  and stay bright. Over it all, where the empty state says how to load a
-  sample and in its sizes and shades, "swap sample" (26 px, #CBCBCB) over
+  and stay bright. Over it all, centred between the header (y 39) and the
+  strip's top (166), in the sizes and shades the empty state says how to
+  load a sample in, "swap sample" (26 px, #CBCBCB) over
   "with" (18 px, #7D7D7D) and the Sample key's icon (28 px): with Shift
   down, the Sample key swaps the sample. The icon is 3 nodes and the words
   2 text slots; Shift's press and release each change the overlay's 4
