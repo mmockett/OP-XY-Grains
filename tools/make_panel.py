@@ -6,7 +6,7 @@ encloses area."""
 import pathlib
 import sys
 
-from sample_view import artwork as sample_view_artwork, hint as sample_view_hint
+from sample_view import artwork as sample_view_artwork, shift_cover, shift_overlay
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ID = sys.argv[1] if len(sys.argv) > 1 else "grains"   # another prefix for a preview copy
@@ -83,15 +83,6 @@ for n, semis in ((45, 0), (46, 12), (47, 24)):
     y = ROOT_Y - semis * 4
     out.append(node(n, rect(LEFT, y - 0.3, LEFT + WIDTH, y + 0.3), "#3E3E3E", 0.5))
 
-# The swap hint, while Shift is held on a loaded sample (sample_view.h, on one
-# line): "swap", "shift +" and the Sample key's icon, as the empty state words
-# it, small above the strip's right end, clear of the end marker's flag (x
-# 451..456) and the strip's tallest columns (y 166); nodes 147..149 and text
-# slots 16 and 17, under the strip and marks, which draw over it.
-out += sample_view_hint(ID, 147, 16)
-# The strip (sample_view.h): its faint centre line (node 50) and a column for
-# each of the overview's 96 bins (51..146), reaching at most 20 px a side.
-out += sample_view_artwork(ID, 50, WIDTH, 20)
 out.append(node(8, rect(-0.7, -19, 0.7, 19), "#e6e6e6", 0.5, "#e6e6e6"))                     # pos
 out.append(node(9, outline([(0, -0.5), (8, -0.5), (8, -3), (11, 0), (8, 3), (8, 0.5), (0, 0.5)])))   # scan, turned to point back
 out.append(node(10, rect(0, -0.15, 64, 0.15)))                                                 # shpe's window, rising
@@ -104,11 +95,20 @@ out.append(node(18, rect(0, -0.15, 64, 0.15)))                                  
 for s, length in enumerate((6, 16, 40)):
     for g in range(8):
         out.append(node(19 + 8 * s + g, rect(-length / 2, -1.3, length / 2, 1.3)))           # grains
+# While Shift is held on a loaded sample (sample_view.h): node 150, a cover
+# dimming the cloud, pos and its marks, drawn over them and under what Shift
+# edits, the strip and its markers; and over everything how to swap the
+# sample, nodes 147..149 and text slots 16 and 17.
+out.append(shift_cover(ID, 150))
+# The strip (sample_view.h): its faint centre line (node 50) and a column for
+# each of the overview's 96 bins (51..146), reaching at most 20 px a side.
+out += sample_view_artwork(ID, 50, WIDTH, 20)
 # Nodes 48 and 49: the stock sampler's start and end markers on the strip,
 # Shift's start and end, each a bar with a flag at its top pointing into the
 # part grains read. Each starts at its flag's corner, where both edges are long.
 out.append(node(48, outline([(-0.6, -23), (5, -23), (0.6, -18.6), (0.6, 21), (-0.6, 21)]), "#e6e6e6", 0.5, "#e6e6e6"))
 out.append(node(49, outline([(0.6, -23), (0.6, 21), (-0.6, 21), (-0.6, -18.6), (-5, -23)]), "#e6e6e6", 0.5, "#e6e6e6"))
+out += shift_overlay(ID, 147, 16)
 for i in range(16):
     grey = f"#{i * 17:02x}{i * 17:02x}{i * 17:02x}"
     out.append(f'<circle id="{ID}_palette_{i}" cx="640" cy="0" r="1" fill="{grey}" stroke="{grey}" stroke-width="1"/>')

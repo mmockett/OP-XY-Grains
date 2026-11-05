@@ -9,7 +9,7 @@
 namespace grains {
 namespace {
 // The sample's view, shared byte for byte with the other sample engines
-// (sample_view.h): the strip's waveform, the trim's markers and the swap hint.
+// (sample_view.h): the strip's waveform, the trim's markers and the Shift overlay.
 namespace sample_view {
 #include "sample_view.h"
 }
@@ -226,9 +226,6 @@ void place_trim(Frame& frame, const Sample& sample, bool shift) {
     sample_view::place_trim_marks(frame, trim_first, *opxy_sample_overview(), strip, shift ? bright : mid);
 }
 
-// The swap hint (Shift + the Sample key) above the strip's right end, on one
-// line, while Shift is held on a loaded sample.
-const i32 swap_x = 362, swap_y = 151;
 
 // One edge of the window: an authored 64 px ribbon from the peak, turned to
 // pass through its foot, (run, down) in 1/64 px away. It runs on off the bottom
@@ -448,7 +445,7 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
         for (u32 n = pos_node; n < grain_first + dash_lengths * grain_shown; ++n) hide(frame, n);
         for (u32 i = 0; i < 3; ++i) hide(frame, octave_first + i);
         for (u32 i = 0; i < 2; ++i) hide(frame, trim_first + i);
-        sample_view::place_swap_hint(frame, swap_first, swap_text, swap_x * unit, swap_y * unit, false, sample_view::sample_hint_in_line);
+        sample_view::place_shift_overlay(frame, overlay_cover, overlay_icon, overlay_text, false);
         return;
     }
     hide(frame, cover_stage);
@@ -459,7 +456,9 @@ inline void display(DisplayState& state, const Input& input, Frame& frame) {
     place_lanes(frame, chord);
     place_grains(state, input, frame, sample, moving);
     place_trim(frame, sample, input.shift != 0);
-    sample_view::place_swap_hint(frame, swap_first, swap_text, swap_x * unit, swap_y * unit, input.shift && sample.overview,
-                                 sample_view::sample_hint_in_line);
+    // While Shift is held on a loaded sample: the cloud dimmed under a cover,
+    // and how to swap the sample over it; the strip, its markers and the
+    // header stay bright.
+    sample_view::place_shift_overlay(frame, overlay_cover, overlay_icon, overlay_text, input.shift && sample.overview);
 }
 }

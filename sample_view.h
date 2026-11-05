@@ -45,16 +45,21 @@
 // - place_trim_marks: the trim's start and end markers, two nodes with a fill
 //   authored about the slot's centre line (each machine draws its own flags),
 //   at the trim's start and end, in shade.
-// - place_swap_hint: while shown (Shift held, with a sample), the hint that
-//   Shift and the Sample key swap the sample: the words "swap" and "shift +"
-//   (two text slots, text_slot and text_slot + 1, 10 px, #CBCBCB and #7D7D7D,
-//   the empty "load a sample" hint's greys) and the Sample key's icon, Grains'
-//   (sample_hint_nodes nodes, first .. first + 2: its outline, its circle and
-//   its bars, 14 px, authored with their own paint, which is kept). Stacked,
-//   "swap" over "shift +" with the icon beside both, 52 x 18 px; in line,
-//   all three on one line, 85 x 14 px; (x, y) is its top left corner.
-//   Otherwise all of it waits off screen: it changes only on Shift's edges,
-//   3 nodes and 2 text slots.
+// - place_shift_overlay: while Shift is held with a sample, the screen dims
+//   to about 30% and says how to swap the sample, as Grains' empty state says
+//   how to load one, in its sizes and shades, centred: "swap sample" (26 px,
+//   #CBCBCB) over "with" (18 px, #7D7D7D) and the Sample key's icon (Grains',
+//   28 px, #7D7D7D). The dimming is one node, the cover: a black rectangle
+//   over the screen below the header (y 39 to 220) authored with
+//   fill-opacity 0.7, which the machine's artwork puts above its main
+//   visuals and below what Shift edits (the waveform, the trim's markers),
+//   so those, and the header, stay bright. Nodes: cover, and the icon's
+//   three, icon .. icon + 2 (its outline, its circle and its bars), authored
+//   with their own paint, which is kept; text slots text_slot ("swap
+//   sample") and text_slot + 1 ("with"). Otherwise all of it waits off
+//   screen: Shift's press and release each move 4 nodes and 2 text slots,
+//   all at once (it is a cover, so reduced motion changes nothing), and the
+//   screen keeps its own churn under it.
 #pragma once
 
 // The SDK's own sizes (on the Blackfin a u32 is an unsigned long).
@@ -65,11 +70,14 @@ using ::opxy::u32;
 static const u32 sample_columns = 96;
 // A column as authored (sample_view.py): this wide, in tenths of a pixel.
 static const i32 sample_column_width_tenths = 48;
-static const u32 sample_hint_nodes = 3;
-// The hint's size, px, from its top left corner.
-static const i32 sample_hint_width = 52, sample_hint_height = 18;
-static const i32 sample_hint_line_width = 85, sample_hint_line_height = 14;
-enum SampleHintLayout { sample_hint_stacked = 0, sample_hint_in_line = 1 };
+// The Shift overlay's icon nodes, and where its parts sit (px; the words'
+// baselines): centred on the 480 px screen, by the words' advances in Univers
+// Next Pro Light ("swap sample" 154.8 px at 26 px, "with" 35.2 at 18).
+static const u32 sample_overlay_icon_nodes = 3;
+static const i32 sample_overlay_title_x = 163, sample_overlay_title_y = 108;   // "swap sample"
+static const i32 sample_overlay_with_x = 201, sample_overlay_with_y = 150;     // "with"
+static const i32 sample_overlay_icon_x = 250, sample_overlay_icon_y = 129;     // the key, 28 px square
+static const i32 sample_overlay_top = 39;                                      // the cover's top: the header stays bright
 
 // Where a machine puts its sample: Q10 px and palette shades.
 struct SampleSlot {
@@ -180,21 +188,20 @@ void place_trim_marks(F& frame, u32 first, const ::opxy::draw::SampleOverview& o
     d::place(frame, first + 1, s.x0 + sample_along(s.width, end, frames), s.y, d::unit, shade, d::fill_and_stroke);
 }
 
-// The swap hint (nodes first .. first + 2, text slots text_slot and
-// text_slot + 1), its top left corner at (x, y), Q10 px, while shown.
+// The Shift overlay (cover, icon .. icon + 2, text slots text_slot and
+// text_slot + 1), while shown.
 template <class F>
-void place_swap_hint(F& frame, u32 first, u32 text_slot, i32 x, i32 y, bool shown, SampleHintLayout layout) {
+void place_shift_overlay(F& frame, u32 cover, u32 icon, u32 text_slot, bool shown) {
     namespace d = ::opxy::draw;
-    // The icon is authored at (38, 4) from the corner, as stacked; in line it
-    // sits at (71, 0), after the words.
-    const i32 in_line = layout == sample_hint_in_line;
-    const i32 ix = x + (in_line ? 33 * d::unit : 0), iy = y - (in_line ? 4 * d::unit : 0);
-    for (u32 k = 0; k < sample_hint_nodes; ++k) {
-        if (shown) d::place(frame, first + k, ix, iy, d::unit, 0, d::keep);
-        else d::hide(frame, first + k);
+    if (shown) d::place(frame, cover, 0, 0, d::unit, 0, d::keep);
+    else d::hide(frame, cover);
+    for (u32 k = 0; k < sample_overlay_icon_nodes; ++k) {
+        if (shown) d::place(frame, icon + k, sample_overlay_icon_x * d::unit, sample_overlay_icon_y * d::unit, d::unit, 0, d::keep);
+        else d::hide(frame, icon + k);
     }
-    const i32 swap_x = x, swap_y = y + (in_line ? 11 * d::unit : 15 * d::unit / 2);
-    const i32 shift_x = x + (in_line ? 34 * d::unit : 0), shift_y = y + (in_line ? 11 * d::unit : 18 * d::unit);
-    d::text(frame, text_slot, shown ? swap_x : d::hidden_x * d::unit, shown ? swap_y : d::hidden_y * d::unit, d::unit, shown ? "swap" : "");
-    d::text(frame, text_slot + 1, shown ? shift_x : d::hidden_x * d::unit, shown ? shift_y : d::hidden_y * d::unit, d::unit, shown ? "shift +" : "");
+    const i32 off_x = d::hidden_x * d::unit, off_y = d::hidden_y * d::unit;
+    d::text(frame, text_slot, shown ? sample_overlay_title_x * d::unit : off_x, shown ? sample_overlay_title_y * d::unit : off_y, d::unit,
+            shown ? "swap sample" : "");
+    d::text(frame, text_slot + 1, shown ? sample_overlay_with_x * d::unit : off_x, shown ? sample_overlay_with_y * d::unit : off_y, d::unit,
+            shown ? "with" : "");
 }

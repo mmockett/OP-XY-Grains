@@ -5,7 +5,7 @@ load yours and play it across the keyboard: grains read around a position that c
 chords and spread across the stereo field, and the screen shows each grain
 where it reads and at what pitch, over the sample's own waveform.
 
-![Grains' screen in six states: no sample loaded; at rest; a note held, pos scanning; a minor chord with spry up, on page 2; Shift held on a trimmed sample, showing start, window, gain and end and the hint to swap the sample; and a note held on the trimmed sample, its grains reading between the markers](docs/screen/preview.png)
+![Grains' screen in six states: no sample loaded; at rest; a note held, pos scanning; a minor chord with spry up, on page 2; Shift held on a trimmed sample, showing start, window, gain and end, the rest dimmed under how to swap the sample; and a note held on the trimmed sample, its grains reading between the markers](docs/screen/preview.png)
 
 **Status: experimental.** Grains plays on an OP-XY running OS 1.2.1 and targets
 Open-XY SDK 1.10. v1.2.0, with its own sample, Shift on the sampler's markers
@@ -53,9 +53,10 @@ instead, on either page, and the screen shows them:
 | encoder 3 | **gain**: the sample's gain, in stock's steps from -30 to +20 | the strip's waveform grows and shrinks, twice as tall each 10 steps up; `+0`, `-12`, `+20` (blank while no gain is known) |
 | encoder 4 | **end**: where grains stop reading | the end marker; its time in the sample |
 
-While Shift is held, a small hint above the waveform's right end reads
-**swap**, **shift +** and the Sample key's icon: Shift + the Sample key loads
-another sample in place of this one.
+While Shift is held, the cloud dims to about 30% and over it the screen
+reads **swap sample with** and the Sample key's icon: with Shift down, the
+Sample key loads another sample in place of this one. The header's row, the
+waveform and its markers, what Shift edits, stay bright.
 
 Trim to the stretch that matters and pos, scan and spry range over it alone:
 pos at 0 sits on the start marker, and a scan wraps from end back to start.
@@ -144,13 +145,13 @@ machine's own samples yet, so use `sdk.py build`.
 - `display.cpp`: the screen ([docs/SCREEN.md](docs/SCREEN.md)), its artwork in
   `panel.svg.fragment` (`tools/make_panel.py` writes it).
 - `sample_view.h`, with its artwork in `tools/sample_view.py`: the strip's
-  waveform, the trim's markers and the swap hint, shared byte for byte with
+  waveform, the trim's markers and the Shift overlay, shared byte for byte with
   the Nonagon Suite's Ghost and Recur (its `tools/check_shared.py` checks the
   copies). Change them only together.
 - `tests/sound.cpp`: the engine's sound tests, and `tests/screen.cpp`, the
   waveform (a column a bin from its lowest value to its highest, heights the
   root of the level, still while a note plays, redrawn for a new sample at
-  most 12 columns a frame), the swap hint, Shift's markers and captions, the
+  most 12 columns a frame), the Shift overlay, Shift's markers and captions, the
   gain's every step and its width, a blank cell for an unknown gain, and the
   waveform growing with the gain, and that grains
   follow the amp envelope (gone at release when it's unknown or short, still

@@ -1,6 +1,6 @@
 // Grains' screen checks, compiled for the host and run by
 // python sdk.py test --machine <folder>: the sample's waveform on the strip, the
-// swap hint Shift shows, what Shift shows now that it edits the stock sampler's
+// overlay Shift shows, what Shift shows now that it edits the stock sampler's
 // markers (resources.stockShift), the markers on the strip, and that every
 // caption Shift's row can show fits its column on the device.
 #include "../display.cpp"
@@ -77,10 +77,12 @@ struct Screen {
     }
     bool hint_shown() const {
         bool all = true, none = true;
-        for (u32 k = 0; k < grains::sample_view::sample_hint_nodes; ++k) { all = all && shown(grains::swap_first + k); none = none && !shown(grains::swap_first + k); }
-        const bool words = !std::strcmp(text(grains::swap_text), "swap") && !std::strcmp(text(grains::swap_text + 1), "shift +");
+        for (u32 k = 0; k < grains::sample_view::sample_overlay_icon_nodes; ++k) { all = all && shown(grains::overlay_icon + k); none = none && !shown(grains::overlay_icon + k); }
+        all = all && shown(grains::overlay_cover) && frame.nodes[grains::overlay_cover].x == 0;
+        none = none && !shown(grains::overlay_cover);
+        const bool words = !std::strcmp(text(grains::overlay_text), "swap sample") && !std::strcmp(text(grains::overlay_text + 1), "with");
         if (all && words) return true;
-        if (!none || text(grains::swap_text)[0] || text(grains::swap_text + 1)[0]) { std::printf("FAIL the swap hint half shown\n"); ++failures; }
+        if (!none || text(grains::overlay_text)[0] || text(grains::overlay_text + 1)[0]) { std::printf("FAIL the Shift overlay half shown\n"); ++failures; }
         return false;
     }
 };
@@ -214,22 +216,31 @@ int main() {
         overview.generation = 1;
         for (u32 b = 0; b < 96; ++b) { const opxy::i16 peak = opxy::i16((40 + (b * 37) % 200) << 7); overview.high[b] = peak; overview.low[b] = opxy::i16(-peak); }
     }
-    {   // The swap hint (sample_view.h, on one line): hidden until Shift is held
-        // on a loaded sample, then shown above the strip's right end, and
-        // nothing else of the stage moves for it.
+    {   // The Shift overlay (sample_view.h): hidden until Shift is held on a
+        // loaded sample, then the cloud dimmed under its cover and "swap
+        // sample", "with" and the Sample key's icon over it; its edges move
+        // its 4 nodes, the markers and the header, nothing else of the stage.
         Screen s;
         s.run();
-        check(!s.hint_shown(), "no swap hint without Shift");
+        check(!s.hint_shown(), "no Shift overlay without Shift");
         s.input.shift = 1;
         s.run(1);
-        check(s.hint_shown() && s.x(grains::swap_first) == 362 - 0 + 33, "Shift shows the swap hint on a loaded sample, in its place");
+        check(s.hint_shown() && s.x(grains::overlay_icon) == grains::sample_view::sample_overlay_icon_x &&
+              s.x(grains::overlay_icon + 1) == grains::sample_view::sample_overlay_icon_x, "Shift shows the overlay on a loaded sample, in its place");
         s.run();
         grains::Frame held = s.frame;
         s.run(30);
         check(!std::memcmp(&held.nodes, &s.frame.nodes, sizeof held.nodes), "the hint holds still while Shift stays down");
-        s.input.shift = 0;
-        s.run(1);
-        check(!s.hint_shown(), "letting Shift go hides the swap hint");
+        {
+            const grains::Frame was = s.frame;
+            s.input.shift = 0;
+            s.run(1);
+            u32 edge = 0;
+            for (u32 n = 0; n < grains::Frame::node_count; ++n) edge += std::memcmp(&was.nodes[n], &s.frame.nodes[n], sizeof(opxy::draw::Node)) != 0;
+            check(edge <= 14, "Shift's edge changes at most 14 nodes (the overlay's 4, the markers' 2, the header's 8)");
+            std::printf("Shift's edge: %u nodes change\n", edge);
+        }
+        check(!s.hint_shown(), "letting Shift go hides the overlay");
         s.input.reduced_motion = 1;
         s.input.shift = 1;
         s.run(1);
@@ -238,12 +249,12 @@ int main() {
         Screen l;
         l.input.shift = 1;
         l.run();
-        check(!l.hint_shown(), "no swap hint while the sample is still loading");
+        check(!l.hint_shown(), "no Shift overlay while the sample is still loading");
         overview.assigned = 0;
         Screen e;
         e.input.shift = 1;
         e.run();
-        check(!e.hint_shown(), "no swap hint over the empty state's own load hint");
+        check(!e.hint_shown(), "no Shift overlay over the empty state's own load hint");
         overview.assigned = overview.loaded = 1;
     }
     {   // No sample: Shift's row shows no times, and nothing is drawn on the stage.
@@ -344,6 +355,6 @@ int main() {
                     after[0], after[1], after[2], longer, shorter, brightest(fast), brightest(slow));
     }
     if (failures) return 1;
-    std::printf("screen: the waveform, the swap hint, Shift's markers and row checked\n");
+    std::printf("screen: the waveform, the Shift overlay, Shift's markers and row checked\n");
     return 0;
 }

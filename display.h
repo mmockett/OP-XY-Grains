@@ -4,20 +4,21 @@
 namespace grains {
 // Matches resources.display: paths, points, nodes, texts, palette (docs/SCREEN.md).
 // No reshaping paths: the strip's waveform is columns (sample_view.h).
-using Frame = opxy::draw::Frame<0, 0, 150, 18, 16>;
+using Frame = opxy::draw::Frame<0, 0, 151, 18, 16>;
 
 // Nodes: the header's bar, the marks, the grains, the covers for the empty
 // state, the octave lanes, the trim's markers, then the sample view's
-// (sample_view.h): the strip's centre line and its 96 columns, and the swap
-// hint's icon (with text slots 16 and 17).
+// (sample_view.h): the strip's centre line and its 96 columns, and the Shift
+// overlay's icon and cover (with text slots 16 and 17).
 const opxy::u32 header_first = 0, pos_node = 8, scan_arrow = 9, window_rise = 10, scan_frozen = 11,
                 spray_first = 12, lane_first = 14, lane_count = 4, window_fall = 18, grain_first = 19, grain_shown = 8,
                 cover_stage = 43, cover_hint = 44,   // with no sample: the stage hidden, the hint shown
                 octave_first = 45,                   // the root, +1 and +2 octave lanes
                 trim_first = 48,                     // the stock sampler's start and end markers (Shift)
                 sample_line = 50,                    // the strip's centre line, then its 96 columns
-                swap_first = 147, swap_text = 16,    // the swap hint's icon and words, while Shift is held
-                node_total = 150;
+                overlay_icon = 147, overlay_cover = 150,   // while Shift is held: how to swap the sample, over a dimming cover
+                overlay_text = 16,
+                node_total = 151;
 // Grains are dashes of three authored lengths (6, 16 and 40 px), eight of each.
 const opxy::u32 dash_lengths = 3;
 

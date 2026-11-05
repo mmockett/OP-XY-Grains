@@ -19,7 +19,7 @@ and [display API](https://github.com/etcetc000/open-xy/blob/staging/docs/display
 | --- | --- | --- |
 | Header | 0 to 38 | The SDK's two-page header (`opxy/page_header.hpp`): page 1 **pos scan size dens**, page 2 **spry chrd shpe mode** |
 | Cloud | 54 to 150 | Lanes from the root (150) to +2 octaves (54), one octave per 48 px |
-| Strip | 166 to 206 | The sample's waveform, centred at 186, at most 20 px a side; the swap hint above its right end (y 151 to 165) while Shift is held |
+| Strip | 166 to 206 | The sample's waveform, centred at 186, at most 20 px a side |
 
 The cloud and the strip share the sample's span, x 24 to 456, so a grain sits
 straight above the stretch of sample it reads.
@@ -55,13 +55,20 @@ straight above the stretch of sample it reads.
   peak down to feet 48 px apart on the screen's bottom edge. The peak slides
   from the right (0, a swell) to the left (100, a pluck), where the engine
   puts it.
-- **Swap hint** (`sample_view.h`, as Ghost and Recur show it): while Shift
-  is held on a loaded sample, "swap", "shift +" and the Sample key's icon on
-  one line above the strip's right end (x 362 to 447, y 151 to 165), at
-  10 px in the empty state's shades (#CBCBCB, #7D7D7D), the key 14 px. The
-  icon is 3 nodes and the words 2 text slots, off screen the rest of the
-  time, so Shift's edges move them and nothing else. It stops short of the
-  end marker's flag, and the strip and marks draw over it.
+- **Shift overlay** (`sample_view.h`, as Ghost and Recur show it): while
+  Shift is held on a loaded sample, the cloud, its lanes and labels, pos and
+  its marks dim to about 30% under one node, a black cover 70% opaque over
+  the screen below the header (node 150), drawn over them and under the
+  strip and its markers, which, with the header's row, are what Shift edits
+  and stay bright. Over it all, where the empty state says how to load a
+  sample and in its sizes and shades, "swap sample" (26 px, #CBCBCB) over
+  "with" (18 px, #7D7D7D) and the Sample key's icon (28 px): with Shift
+  down, the Sample key swaps the sample. The icon is 3 nodes and the words
+  2 text slots; Shift's press and release each change the overlay's 4
+  nodes, the markers' 2 and the header's, and nothing else. The cover's
+  `fill-opacity` is allowed by the SDK's artwork rules and drawn by the
+  browser, but not yet seen on the OP-XY: drawn opaque there, the cloud would
+  hide rather than dim.
 - **Start and end** (Shift + encoders 1, 2 and 4, the stock sampler's
   markers): a bar each on the strip, a flag at its top pointing into the part
   grains read. Shown bright while Shift is held, and a step dimmer whenever
@@ -99,13 +106,13 @@ straight above the stretch of sample it reads.
 
 ## Budget
 
-Within the SDK's frame (no paths, 150 nodes, 16 shades, 18 text slots):
+Within the SDK's frame (no paths, 151 nodes, 16 shades, 18 text slots):
 
 | Part | Uses |
 | --- | --- |
 | Header | 8 bar nodes and text slots 0 to 15 |
 | Strip | 97 nodes: the centre line and 96 columns (`sample_view.h`) |
-| Swap hint | 3 nodes (the key's icon) and text slots 16 and 17 |
+| Shift overlay | 4 nodes (the cover and the key's icon) and text slots 16 and 17 |
 | pos, scan, spry | 5 nodes (line, arrow, cap, a pair of dotted lines) |
 | shpe | 2 nodes (the window's edges, sharing the peak as their pivot) |
 | Lanes | 7 nodes (3 octaves, up to 4 chord notes) and 3 static labels |
@@ -113,7 +120,7 @@ Within the SDK's frame (no paths, 150 nodes, 16 shades, 18 text slots):
 | Start and end | 2 nodes |
 | No sample | 2 nodes (the covers) |
 
-150 nodes and no reshaping paths. The strip, the markers and the swap hint
+151 nodes and no reshaping paths. The strip, the markers and the Shift overlay
 come from `sample_view.h` (with its artwork in `tools/sample_view.py`),
 shared byte for byte with the Nonagon Suite's Ghost and Recur: it takes the
 slot's place, size, shades and nodes as arguments and uses only
