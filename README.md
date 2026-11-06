@@ -8,18 +8,20 @@ where it reads and at what pitch, over the sample's own waveform.
 ![Grains' screen in six states: no sample loaded; at rest; a note held, pos scanning; a minor chord with spry up, on page 2; Shift held on a trimmed sample, showing start, window, gain and end, the rest dimmed under how to swap the sample; and a note held on the trimmed sample, its grains reading between the markers](docs/screen/preview.png)
 
 **Status: experimental.** Grains plays on an OP-XY running OS 1.2.1 and targets
-Open-XY SDK 1.10. v1.2.0, with its own sample, Shift on the sampler's markers
-and gain, and a screen that follows the amp envelope, has been played on an
-OP-XY, and its render callback measures 3.09% of the stock block budget there
-(one capture of `opxy-sample-callback-v1` at v1.2.0, graphics excluded). That
-measures its defaults only, so a preset or setting with more grains, `dens` up
+Open-XY SDK 1.10. It has its own sample, Shift on the sampler's markers and
+gain, and a screen that follows the amp envelope. v1.2.1 does less work in its
+busiest blocks, with the same sound: on an OP-XY its render callback measures
+1.92% of the stock block budget on average and 4.49% in its worst single block
+(three captures of `opxy-sample-callback-v1` at v1.2.1, graphics excluded),
+where v1.2.0 measured 3.02% and 5.74% in the same firmware. That measures its
+defaults only, so a preset or setting with more grains, `dens` up
 to 20 for example, costs more, and it isn't total device CPU or a worst-case
 sweep.
 
 The [open-xy.com builder](https://open-xy.com/#preview/machines/grains)
 installs `v1.1.0`, the version the Open-XY catalog pins; its entry is moving
-to v1.2.0 ([etcetc000/open-xy#419](https://github.com/etcetc000/open-xy/pull/419)).
-Until then, build v1.2.0 from source (below). The builder plays Grains'
+to v1.2.1, which needs SDK 1.10. Until the builder has it, build v1.2.1 from
+source (below). The builder plays Grains'
 presets with no sample loaded, as it doesn't install a machine's own samples;
 a build from source opens them on wane.
 
